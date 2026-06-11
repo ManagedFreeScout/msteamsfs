@@ -138,6 +138,12 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             return trim($extra . ' https://res.cdn.office.net');
         });
 
+        // Inject link + form interception JS on every FreeScout page
+        \Eventy::addFilter('javascripts', function ($scripts) {
+            $scripts[] = asset('modules/msteamsfs/js/msteamsfs.js');
+            return $scripts;
+        }, 20, 1);
+
         // Weekly license re-validation
         \Eventy::addAction('schedule', function ($schedule) {
             $schedule->call(function () {

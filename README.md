@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -120,7 +120,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.0.0
+├── version.txt                          1.0.1
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -142,6 +142,11 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.0.2 (2026-06-11)
+- Add form submission interception: `form[target="_blank"]` submissions (e.g. FreeScout search) are
+  caught and routed through `handleLink()` so they stay inside the Teams iframe
+- Register `msteamsfs.js` via the `javascripts` Eventy filter (was missing since v1.0.0)
+
 ### 1.0.1 (2026-06-11)
 - Fix: redirect after login now goes to `/` (FreeScout root) instead of `/mailboxes`
 - Fix: license gate added at top of `handoff()` — returns 403 if no active license
@@ -151,6 +156,14 @@ MSTeamsFS/
 - Initial build
 - Receives ManagedFreeScout HMAC handoff token at GET /teams-sso-handoff
 - Verifies HMAC-SHA256 signature and millisecond expiry
-- Auth::login() + redirect to /mailboxes
+- Auth::login() + redirect to / (corrected to / in v1.0.1)
 - Settings: Backend Secret + Allowed Domains
 - No Azure JWT/JWKS code — backend handles all Azure token validation
+
+---
+
+## Session log
+
+| Date | What was done | What's next |
+|---|---|---|
+| 2026-06-11 | Initial build (v1.0.0): scaffolded from MSTeamsSso, JWT/JWKS code stripped, handoff() receiver built (HMAC verify + ms expiry + Auth::login()), settings page (Backend Secret + Allowed Domains), CSP hooks, license system, auto-update URLs wired to GitHub; v1.0.0 released to ManagedFreeScout/msteamsfs; manually installed on support.stackpros.io, Backend Secret configured, full end-to-end flow confirmed ✅; v1.0.1: license gate at top of handoff(), redirect to / fix, icon fix; auto-update confirmed working ✅ | Create DLM product on stackpros.io, assign product_id in Config/config.php; build customer registration flow; submit Teams app to Microsoft store; design proper MSTeamsFS icon |

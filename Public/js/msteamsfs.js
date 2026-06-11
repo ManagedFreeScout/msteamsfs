@@ -38,6 +38,16 @@ var _msTeamsInitDone = false;
             }
             return originalOpen.apply(this, arguments);
         };
+
+        document.addEventListener('submit', function(e) {
+            const form = e.target.closest('form[target="_blank"]');
+            if (!form) return;
+            e.preventDefault();
+            const action = form.action || window.location.href;
+            const params = new URLSearchParams(new FormData(form)).toString();
+            const url = params ? action + '?' + params : action;
+            handleLink(url);
+        }, true);
     }
 
     if (typeof microsoftTeams !== 'undefined' && !_msTeamsInitDone) {

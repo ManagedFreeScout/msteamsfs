@@ -142,6 +142,11 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.0.1 (2026-06-11)
+- Fix: redirect after login now goes to `/` (FreeScout root) instead of `/mailboxes`
+- Fix: license gate added at top of `handoff()` — returns 403 if no active license
+- Fix: module icon re-copied from MSTeamsSso to ensure it renders on Manage → Modules
+
 ### 1.0.0 (2026-06-11)
 - Initial build
 - Receives ManagedFreeScout HMAC handoff token at GET /teams-sso-handoff

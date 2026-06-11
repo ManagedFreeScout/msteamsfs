@@ -489,6 +489,18 @@ class LicenseService
     /**
      * Get the current license status
      */
+    /**
+     * Quick static check — true if a valid license record exists in the DB.
+     */
+    public static function isLicensed(): bool
+    {
+        try {
+            return (bool) ((new self())->getLicenseStatus()['valid'] ?? false);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function getLicenseStatus()
     {
         // Check if table exists first

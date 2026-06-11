@@ -10,6 +10,12 @@ class TeamsSsoController extends Controller
 {
     public function handoff(Request $request)
     {
+        // License gate — checked before any token processing
+        $isLicensed = \Modules\MSTeamsFS\Services\LicenseService::isLicensed();
+        if (!$isLicensed) {
+            return response('MSTeamsFS license not active.', 403);
+        }
+
         $backendSecret = (string)(\Option::get('msteamsfs.backend_secret') ?? '');
         if (empty($backendSecret)) {
             return $this->errorResponse('Module not configured. Please enter the Backend Secret in Settings → MSTeams FS.', 403);
@@ -80,10 +86,10 @@ class TeamsSsoController extends Controller
             );
         }
 
-        // Log the agent in and redirect to mailboxes
+        // Log the agent in and redirect to FreeScout home
         Auth::login($user, true);
 
-        return redirect('/mailboxes');
+        return redirect('/');
     }
 
     private function errorResponse(string $message, int $status)

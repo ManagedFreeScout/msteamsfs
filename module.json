@@ -1,0 +1,22 @@
+{
+    "name": "MSTeamsFS",
+    "alias": "msteamsfs",
+    "description": "Receive and verify ManagedFreeScout Teams SSO handoff tokens and log the agent into FreeScout.",
+    "version": "1.0.0",
+    "author": "StackPros",
+    "keywords": [],
+    "active": 1,
+    "order": 0,
+    "providers": [
+        "Modules\\MSTeamsFS\\Providers\\MSTeamsFSServiceProvider"
+    ],
+    "authorUrl": "https://managedfreescout.com",
+    "aliases": {},
+    "files": [
+        "start.php"
+    ],
+    "img": "/modules/msteamsfs/img/msteamsfs-icon.png",
+    "requires": [],
+    "latestVersionUrl": "https://raw.githubusercontent.com/ManagedFreeScout/msteamsfs/main/version.txt",
+    "latestVersionZipUrl": "https://github.com/ManagedFreeScout/msteamsfs/releases/latest/download/msteamsfs.zip"
+}

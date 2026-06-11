@@ -1,0 +1,27 @@
+{
+  "name": "stackpros/freescout-msteamsfs",
+  "description": "FreeScout module — receive and verify ManagedFreeScout Teams SSO handoff tokens and log the agent in.",
+  "authors": [
+    {
+      "name": "StackPros",
+      "email": "support@stackpros.io"
+    }
+  ],
+  "type": "library",
+  "require": {
+    "php": ">=7.2"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Modules\\MSTeamsFS\\Providers\\MSTeamsFSServiceProvider"
+      ],
+      "aliases": {}
+    }
+  },
+  "autoload": {
+    "psr-4": {
+      "Modules\\MSTeamsFS\\": ""
+    }
+  }
+}

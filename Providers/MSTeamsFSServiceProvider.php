@@ -15,7 +15,9 @@ class MSTeamsFSServiceProvider extends ServiceProvider
     {
         $this->registerConfig();
         $this->registerViews();
+        $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
         $this->hooks();
+        $this->notificationHooks();
     }
 
     public function register()
@@ -154,6 +156,114 @@ class MSTeamsFSServiceProvider extends ServiceProvider
                 }
             })->weekly();
         }, 20, 1);
+    }
+
+    /**
+     * Teams activity-feed notification triggers. Same Eventy events, same
+     * priority/arg-count, as ApiWebhooks' hooks() — the two modules' events
+     * are guaranteed to line up with what FreeScout's own "Browser" notification
+     * channel fires on, since ApiWebhooks was built by FreeScout's own authors
+     * against those same trigger points.
+     */
+    public function notificationHooks()
+    {
+        // Conversation assigned. $by_user is the agent who performed the
+        // assignment (core dispatches conversation.user_changed($conversation,
+        // $user=auth user, $prev_user_id) — confirmed via core source), not the
+        // new assignee. The new assignee is $conversation->user.
+        \Eventy::addAction('conversation.user_changed', function ($conversation, $by_user) {
+            if (!$conversation->user_id) {
+                return;
+            }
+            $actor = $by_user ? $by_user->getFullName() : '';
+            self::maybeNotifyTeams('assigned', $conversation, $actor);
+        }, 20, 2);
+
+        // Customer replied. Actor is the customer, recipient is the assignee.
+        \Eventy::addAction('conversation.customer_replied', function ($conversation, $thread) {
+            $actor = $conversation->customer ? $conversation->customer->getFullName(true) : __('A customer');
+            self::maybeNotifyTeams('newReply', $conversation, $actor);
+        }, 20, 2);
+
+        // Colleague replied. $thread->created_by_user_id identifies who wrote
+        // it (confirmed against core's App\Thread model -- created_by_user_id
+        // field + created_by_user() relation to App\User). Self-notification
+        // guard: never notify the assignee about their own reply/note.
+        \Eventy::addAction('conversation.user_replied', function ($conversation, $thread) {
+            if (!$conversation->user_id || $thread->created_by_user_id == $conversation->user_id) {
+                return;
+            }
+            $actor = $thread->created_by_user ? $thread->created_by_user->getFullName() : __('A colleague');
+            self::maybeNotifyTeams('userReplied', $conversation, $actor);
+        }, 20, 2);
+
+        // Colleague added a note. Same self-notification guard as above.
+        \Eventy::addAction('conversation.note_added', function ($conversation, $thread) {
+            if (!$conversation->user_id || $thread->created_by_user_id == $conversation->user_id) {
+                return;
+            }
+            $actor = $thread->created_by_user ? $thread->created_by_user->getFullName() : __('A colleague');
+            self::maybeNotifyTeams('noteAdded', $conversation, $actor);
+        }, 20, 2);
+
+        // Deferred: the actual outbound POST to the ManagedFreeScout backend,
+        // off the request cycle — same pattern as ApiWebhooks' 'webhook.run'.
+        \Eventy::addAction('msteamsfs.notify_teams', function ($eventType, $conversation, $actor) {
+            self::sendTeamsNotification($eventType, $conversation, $actor);
+        }, 20, 3);
+    }
+
+    public static function maybeNotifyTeams($eventType, $conversation, $actor)
+    {
+        if (!$conversation->user_id) {
+            // Nobody assigned — nobody to notify (no @mention concept exists yet;
+            // see report on the FreeScout core grep before adding one).
+            return;
+        }
+        \Helper::backgroundAction('msteamsfs.notify_teams', [$eventType, $conversation, $actor]);
+    }
+
+    public static function sendTeamsNotification($eventType, $conversation, $actor)
+    {
+        $link = \Modules\MSTeamsFS\Entities\TeamsUserLink::where('user_id', $conversation->user_id)->first();
+        if (!$link) {
+            // This FreeScout user has never signed in via the Teams tab — we have
+            // no oid/tid to target, so there's nothing Graph could deliver to.
+            return;
+        }
+
+        $backendSecret = (string) (\Option::get('msteamsfs.backend_secret') ?? '');
+        $backendUrl    = config('msteamsfs.backend_url');
+        if (empty($backendSecret) || empty($backendUrl)) {
+            return;
+        }
+
+        $payload = [
+            'event'          => $eventType,
+            'conversationId' => $conversation->id,
+            'subject'        => $conversation->subject,
+            'actor'          => $actor,
+            'tenantId'       => $link->tid,
+            'users'          => [
+                ['userId' => $conversation->user_id, 'oid' => $link->oid],
+            ],
+        ];
+
+        $body      = json_encode($payload);
+        $signature = hash_hmac('sha256', $body, $backendSecret);
+
+        $options = \Helper::setGuzzleDefaultOptions(['timeout' => 15]);
+        $options['headers'] = [
+            'Content-Type'           => 'application/json',
+            'X-MSTeamsFS-Signature'  => $signature,
+        ];
+        $options['body'] = $body;
+
+        try {
+            (new \GuzzleHttp\Client())->request('POST', rtrim($backendUrl, '/') . '/teams/notify', $options);
+        } catch (\Exception $e) {
+            \Log::error('MSTeamsFS: Teams notification POST failed — ' . $e->getMessage());
+        }
     }
 
     public function provides()

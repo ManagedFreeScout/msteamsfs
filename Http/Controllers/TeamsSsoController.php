@@ -60,6 +60,18 @@ class TeamsSsoController extends Controller
 
         $email = $payload['email'];
         $exp   = (int) $payload['exp']; // milliseconds since epoch
+        // tid/oid are additive (added 2026-07-15) — optional so a token issued by an
+        // old backend build during a rolling deploy still logs the agent in; they're
+        // only needed for the notification-linking feature, not for auth itself.
+        $tid   = $payload['tid'] ?? null;
+        $oid   = $payload['oid'] ?? null;
+        // conversationId is additive too (added 2026-07-17) — only present when
+        // the Teams tab was opened via an Activity Feed deep link. Validated as
+        // a positive integer before ever touching the redirect URL.
+        $conversationId = $payload['conversationId'] ?? null;
+        if ($conversationId !== null && !ctype_digit((string) $conversationId)) {
+            $conversationId = null;
+        }
 
         // Check expiry (exp is in ms, microtime(true) gives seconds as float)
         if ($exp <= (int) (microtime(true) * 1000)) {
@@ -86,8 +98,19 @@ class TeamsSsoController extends Controller
             );
         }
 
-        // Log the agent in and redirect to FreeScout home
+        // Capture the AAD identity for this login so conversation-event notifications
+        // can later be targeted at the right Teams user via Graph's activity feed API.
+        if ($tid && $oid) {
+            \Modules\MSTeamsFS\Entities\TeamsUserLink::linkUser($user->id, $tid, $oid);
+        }
+
+        // Log the agent in and redirect to FreeScout home — or the specific
+        // conversation, if this login came from an Activity Feed deep link.
         Auth::login($user, true);
+
+        if ($conversationId) {
+            return redirect('/conversation/' . $conversationId);
+        }
 
         return redirect('/');
     }

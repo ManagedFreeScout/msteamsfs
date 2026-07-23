@@ -108,7 +108,11 @@ class TeamsSsoController extends Controller
         // conversation, if this login came from an Activity Feed deep link.
         Auth::login($user, true);
 
-        if ($conversationId) {
+        // A cached Teams deep link (e.g. mobile resuming a suspended tab) can replay
+        // a conversationId that's since been deleted or merged. find() (not
+        // findOrFail()) + a null check here means that only ever degrades to the
+        // safe default below, instead of FreeScout's own confusing generic 404 page.
+        if ($conversationId && \App\Conversation::find($conversationId)) {
             return redirect('/conversation/' . $conversationId);
         }
 

@@ -18,6 +18,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
         $this->hooks();
         $this->notificationHooks();
+        $this->registerTeams404ReloadMiddleware();
     }
 
     public function register()
@@ -269,6 +270,21 @@ class MSTeamsFSServiceProvider extends ServiceProvider
     public function provides()
     {
         return [];
+    }
+
+    /**
+     * EXPERIMENTAL (v1.2.7) — see InjectTeams404ReloadScript for full context.
+     * Registered as GLOBAL middleware (Kernel::prependMiddleware), not scoped
+     * to the 'web' middleware group, since a genuinely unmatched route never
+     * runs group middleware at all — only global middleware sees every
+     * response regardless of whether a route matched. prependMiddleware (not
+     * push) makes this the outermost layer, so its after-$next() logic runs
+     * last and sees the truly final response.
+     */
+    protected function registerTeams404ReloadMiddleware()
+    {
+        $kernel = $this->app->make(\Illuminate\Contracts\Http\Kernel::class);
+        $kernel->prependMiddleware(\Modules\MSTeamsFS\Http\Middleware\InjectTeams404ReloadScript::class);
     }
 
     protected function updateHtaccessFile()

@@ -1,0 +1,17 @@
+# Build artifacts
+*.zip
+*.tar.gz
+
+# Backup files left by manual edits
+*.bak
+*.bak-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo

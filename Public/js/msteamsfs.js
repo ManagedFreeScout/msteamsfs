@@ -70,11 +70,25 @@ var _msTeamsInitDone = false;
     // combined bundle as jquery/bootstrap — a Microsoft CDN hiccup there would
     // break core JS for every visitor, Teams or not. Loading it here instead
     // keeps the blast radius limited to this file, and only inside the iframe.
+    // TEMPORARY (v1.4.1) — diagnostic logging only, to find out why the resume
+    // handler isn't preventing re-auth in real Desktop Teams. Remove once the
+    // failing step in this chain is identified; not meant to ship long-term.
+    var _msTeamsDebugT0 = Date.now();
+    function msTeamsDebugLog() {
+        try {
+            var args = Array.prototype.slice.call(arguments);
+            args.unshift('[MSTeamsFS-DEBUG-LIFECYCLE] +' + (Date.now() - _msTeamsDebugT0) + 'ms');
+            console.log.apply(console, args);
+        } catch (e) { }
+    }
+
     function loadTeamsSdk(callback) {
         if (typeof microsoftTeams !== 'undefined') {
+            msTeamsDebugLog('microsoftTeams already defined on page load — skipping dynamic script injection');
             callback();
             return;
         }
+        msTeamsDebugLog('injecting TeamsJS SDK <script> tag');
         try {
             var script = document.createElement('script');
             script.src = 'https://res.cdn.office.net/teams-js/2.54.0/js/MicrosoftTeams.min.js';
@@ -82,10 +96,17 @@ var _msTeamsInitDone = false;
             script.crossOrigin = 'anonymous';
             // Fall back to today's behavior (no SDK, full re-auth per switch)
             // on any load failure rather than leaving the page half-broken.
-            script.onload = function() { callback(); };
-            script.onerror = function() { callback(); };
+            script.onload = function() {
+                msTeamsDebugLog('SDK <script> onload fired, typeof microsoftTeams =', typeof microsoftTeams);
+                callback();
+            };
+            script.onerror = function(err) {
+                msTeamsDebugLog('SDK <script> onerror — CDN load failed, falling back', err);
+                callback();
+            };
             document.head.appendChild(script);
         } catch (e) {
+            msTeamsDebugLog('loadTeamsSdk threw synchronously', e && e.message);
             callback();
         }
     }
@@ -102,11 +123,13 @@ var _msTeamsInitDone = false;
     // the separate pageshow/persisted handling below for Android's own,
     // already-addressed concern.
     function registerLifecycleHandlers() {
+        msTeamsDebugLog('registerLifecycleHandlers() called');
         try {
             var lifecycle = microsoftTeams.app.lifecycle;
             if (!lifecycle ||
                 typeof lifecycle.registerOnResumeHandler !== 'function' ||
                 typeof lifecycle.registerBeforeSuspendOrTerminateHandler !== 'function') {
+                msTeamsDebugLog('app.lifecycle missing or wrong shape — bailing out', typeof lifecycle);
                 return;
             }
 
@@ -115,12 +138,14 @@ var _msTeamsInitDone = false;
             // in-progress-reply/unsaved-content protection is a separate,
             // unrelated concern already handled by the pageshow listener below.
             lifecycle.registerBeforeSuspendOrTerminateHandler(function () {
+                msTeamsDebugLog('registerBeforeSuspendOrTerminateHandler FIRED — Teams is suspending/terminating this tab');
                 try {
                     return Promise.resolve();
                 } catch (e) {
                     return;
                 }
             });
+            msTeamsDebugLog('registerBeforeSuspendOrTerminateHandler registered successfully');
 
             // On resume, Teams tells us via ResumeContext what page it thinks
             // should be showing (contentUrl). This is a client-side navigation
@@ -129,31 +154,45 @@ var _msTeamsInitDone = false;
             // there's no fresh SSO token here to validate; that's a separate
             // server-side concern for the initial handoff only.
             lifecycle.registerOnResumeHandler(function (context) {
+                msTeamsDebugLog('registerOnResumeHandler FIRED', context);
                 try {
                     var targetHref = context && context.contentUrl ? String(context.contentUrl) : null;
                     if (targetHref && targetHref !== window.location.href) {
+                        msTeamsDebugLog('navigating to contentUrl', targetHref);
                         window.location.replace(targetHref);
+                    } else {
+                        msTeamsDebugLog('contentUrl matches current location, no navigation needed');
                     }
-                } catch (e) { }
+                } catch (e) {
+                    msTeamsDebugLog('resume handler routing threw', e && e.message);
+                }
                 try {
                     microsoftTeams.app.notifySuccess();
-                } catch (e) { }
+                    msTeamsDebugLog('notifySuccess() called from resume handler');
+                } catch (e) {
+                    msTeamsDebugLog('notifySuccess() threw', e && e.message);
+                }
             });
+            msTeamsDebugLog('registerOnResumeHandler registered successfully — both handlers now in place');
         } catch (e) {
-            // Beta API missing/changed shape — silently keep today's behavior.
+            msTeamsDebugLog('registerLifecycleHandlers() threw — Beta API missing/changed shape', e && e.message);
         }
     }
 
     loadTeamsSdk(function() {
         if (typeof microsoftTeams !== 'undefined' && !_msTeamsInitDone) {
             _msTeamsInitDone = true;
+            msTeamsDebugLog('calling microsoftTeams.app.initialize()');
             microsoftTeams.app.initialize().then(function() {
+                msTeamsDebugLog('app.initialize() RESOLVED');
                 registerLifecycleHandlers();
                 setupLinkInterception();
-            }).catch(function() {
+            }).catch(function(err) {
+                msTeamsDebugLog('app.initialize() REJECTED', err && err.message);
                 setupLinkInterception();
             });
         } else {
+            msTeamsDebugLog('skipping SDK init — typeof microsoftTeams =', typeof microsoftTeams, '_msTeamsInitDone =', _msTeamsInitDone);
             setupLinkInterception();
         }
     });

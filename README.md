@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.4.0
+**Version:** 1.4.1
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -120,7 +120,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.4.0
+├── version.txt                          1.4.1
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -141,6 +141,34 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.4.1 (2026-07-25) — ⚠️ TEMPORARY DEBUG BUILD, NOT A FIX
+
+**Live test result on v1.4.0:** tab-switch-and-back on Desktop Teams still shows the full
+"Signing you in..." spinner every time — the resume-handler mechanism isn't preventing
+re-authentication. Root cause not yet identified; this build adds temporary
+`[MSTeamsFS-DEBUG-LIFECYCLE]` console logging (client-side, `console.log`, not
+`Log::error()` — this is JS, not PHP) at every checkpoint in the chain: SDK `<script>`
+injection, `onload`/`onerror`, `app.initialize()` resolve/reject, entry into
+`registerLifecycleHandlers()`, success/failure of each `register*Handler` call, and
+firing of the resume/suspend handlers themselves — each line timestamped relative to
+page load, to directly test the leading theory (see below) that our registration chain
+completes too slowly relative to how fast a user can switch tabs away.
+
+**Leading theory, confirmed as a real documented precondition** (re-read the full
+Microsoft app-caching doc, not just the API reference snippet used for v1.4.0): *"Register
+the app suspension handlers early in your launch sequence, such as right after calling
+`app.initialize` and before the app sends `notifySuccess`. If the Teams client doesn't see
+these registrations before the user leaves the app, the app isn't cached."* Our v1.4.0
+chain is: page renders → `msteamsfs.js` runs (already at the very end of body) → dynamically
+inject the SDK `<script>` tag → wait for a network round-trip to Microsoft's CDN →
+`app.initialize()` (its own async handshake with the Teams host) → only then register the
+handlers. That's meaningfully slower than a static, bundled, immediately-registered SDK —
+plausibly slow enough to lose the race against a fast tab switch. This build's timestamped
+logs will confirm or rule this out with real numbers instead of assumption.
+
+**To remove once the failing step is confirmed** — this is instrumentation, not a shipped
+feature. See the `[MSTeamsFS-DEBUG-LIFECYCLE]` tag for every line to strip afterward.
 
 ### 1.4.0 (2026-07-25) — 🧪 EXPERIMENTAL: Desktop/iOS tab-suspend/resume, uses a Microsoft BETA API
 

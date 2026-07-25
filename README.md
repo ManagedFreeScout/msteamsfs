@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.3.0
+**Version:** 1.4.0
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -120,7 +120,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.3.0
+├── version.txt                          1.4.0
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -141,6 +141,57 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.4.0 (2026-07-25) — 🧪 EXPERIMENTAL: Desktop/iOS tab-suspend/resume, uses a Microsoft BETA API
+
+**Goal:** eliminate the 2–4s full SSO re-handoff that currently happens every time a user
+switches away from and back to this tab on Desktop or iOS Teams. Per Microsoft's docs,
+Desktop and iOS support app tab suspension/resume (cache lifetime up to 30 minutes);
+**Android explicitly does not support this at all** and is out of scope for this release —
+Android's tab-switch behavior is unaffected, and it already avoids re-triggering sign-in on
+switches via its own native mechanism, separate from anything in this module.
+
+**⚠️ Uses `microsoftTeams.app.lifecycle`, which Microsoft's own current docs mark as Beta
+and explicitly say "do not use in production."** This is a deliberate, informed choice — not
+an oversight — but it means the API shape could change or the whole namespace could be
+withdrawn in a future TeamsJS SDK version without notice. **Treat this feature as an
+experiment, not a stable capability**, until Microsoft graduates it out of Beta. Anyone
+picking this code back up later (a future session or a future Rutger) should re-check the
+current `app.lifecycle` docs before assuming this still works as described here.
+
+**What changed:**
+- `msteamsfs.js` now dynamically loads the TeamsJS SDK (`res.cdn.office.net/teams-js/2.54.0`)
+  on every FreeScout page, not just during the SSO handoff — gated behind the same
+  `window.self === window.top` iframe guard as the rest of the file, so it never loads (and
+  has zero cost) for a normal, non-Teams browser visit.
+- **Deliberately NOT added to the module's `javascripts` Eventy filter registration.**
+  Investigated FreeScout's actual `Minify` library (`DevFactoryCH/minify`) source: any
+  `http(s)://` entry in that filter's array gets fetched **server-side** and inlined into the
+  *same combined bundle* as jQuery/Bootstrap/every other module's JS. A Microsoft CDN hiccup
+  during a cache-regeneration event (which happens per distinct browser/Teams-client
+  User-Agent, not just once) would have broken core JS for **every visitor on the whole
+  install, Teams or not**. Loading the SDK from inside `msteamsfs.js` itself, client-side,
+  avoids that entirely — confirmed via the library's own source, not assumed.
+- Registers `app.lifecycle.registerOnResumeHandler` and
+  `registerBeforeSuspendOrTerminateHandler` immediately after `app.initialize()` resolves,
+  per Microsoft's documented sequencing. On resume, navigates (`window.location.replace`) to
+  the `contentUrl` Teams reports via `ResumeContext` only if it differs from the current URL;
+  otherwise it's a no-op. This is a pure client-side navigation using the already-authenticated
+  session — deliberately **not** reusing `TeamsSsoController`'s token/`conversationId` logic,
+  since resume never carries a fresh signed SSO token to validate; that logic is scoped to the
+  initial server-side handoff only.
+- **Defensive end-to-end, by design**: SDK script load failure, a missing/reshaped
+  `app.lifecycle` namespace, or a thrown exception from any lifecycle call all fall back
+  silently to today's behavior (full re-auth on every switch) — never a broken page. Verified
+  with a 6-scenario Node sandbox harness (outside-iframe, CDN load failure, SDK loads but
+  global never appears, full success incl. actually invoking the resume/suspend handlers,
+  `lifecycle` namespace missing entirely, and a handler that throws synchronously) — all 17
+  checks passed, including that the click-interception setup (the pre-existing, load-bearing
+  part of this file) still completes in every failure scenario.
+
+**Rollout:** live for Rutger's own account only, for real-world testing. Explicitly an
+experiment given the Beta API status — not a general rollout — until proven reliable in
+practice.
 
 ### 1.3.0 (2026-07-23) — ✅ CASE CLOSED: mobile "Sorry" page root-caused (external, not a module bug)
 

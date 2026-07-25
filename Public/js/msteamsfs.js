@@ -59,14 +59,104 @@ var _msTeamsInitDone = false;
         }, true);
     }
 
-    if (typeof microsoftTeams !== 'undefined' && !_msTeamsInitDone) {
-        _msTeamsInitDone = true;
-        microsoftTeams.app.initialize().then(function() {
-            setupLinkInterception();
-        });
-    } else {
-        setupLinkInterception();
+    // v1.4.0 — dynamically load the TeamsJS SDK on every FreeScout page (not just
+    // our own SSO handoff), gated behind the iframe guard above so this never
+    // fires for a normal, non-Teams browser visit. Needed so
+    // app.lifecycle.registerOnResumeHandler (below) can actually attach — it's a
+    // no-op unless the SDK is present on the page the user is sitting on when
+    // they switch tabs. Deliberately NOT registered via the module's own
+    // 'javascripts' PHP filter: FreeScout's Minify library fetches any
+    // http(s):// entry in that list server-side and inlines it into the SAME
+    // combined bundle as jquery/bootstrap — a Microsoft CDN hiccup there would
+    // break core JS for every visitor, Teams or not. Loading it here instead
+    // keeps the blast radius limited to this file, and only inside the iframe.
+    function loadTeamsSdk(callback) {
+        if (typeof microsoftTeams !== 'undefined') {
+            callback();
+            return;
+        }
+        try {
+            var script = document.createElement('script');
+            script.src = 'https://res.cdn.office.net/teams-js/2.54.0/js/MicrosoftTeams.min.js';
+            script.integrity = 'sha384-PIuQ2V7hlz4b1x3G1mPCYYZiWTjxzRTL6bf547xR9ARsAeNv2DAzti86LQnFCwlo';
+            script.crossOrigin = 'anonymous';
+            // Fall back to today's behavior (no SDK, full re-auth per switch)
+            // on any load failure rather than leaving the page half-broken.
+            script.onload = function() { callback(); };
+            script.onerror = function() { callback(); };
+            document.head.appendChild(script);
+        } catch (e) {
+            callback();
+        }
     }
+
+    // EXPERIMENTAL (v1.4.0) — Desktop/iOS tab-suspend/resume, to avoid the full
+    // 2-4s SSO re-handoff on every tab switch. Uses microsoftTeams.app.lifecycle,
+    // which Microsoft's own docs mark Beta and "not for production use" as of
+    // TeamsJS 2.54.0 — the API shape could change or disappear in a future SDK
+    // version without notice. Everything here is wrapped defensively: any
+    // failure (API missing, shape changed, throws at runtime) must silently
+    // fall back to today's behavior (full re-auth on every switch), never break
+    // the page. Desktop/iOS only per Microsoft's docs; Android does not support
+    // tab suspend/resume at all and isn't expected to see any change here — see
+    // the separate pageshow/persisted handling below for Android's own,
+    // already-addressed concern.
+    function registerLifecycleHandlers() {
+        try {
+            var lifecycle = microsoftTeams.app.lifecycle;
+            if (!lifecycle ||
+                typeof lifecycle.registerOnResumeHandler !== 'function' ||
+                typeof lifecycle.registerBeforeSuspendOrTerminateHandler !== 'function') {
+                return;
+            }
+
+            // Registering both handlers opts into suspension (vs. delayed
+            // termination) per Microsoft's docs. Nothing to persist here —
+            // in-progress-reply/unsaved-content protection is a separate,
+            // unrelated concern already handled by the pageshow listener below.
+            lifecycle.registerBeforeSuspendOrTerminateHandler(function () {
+                try {
+                    return Promise.resolve();
+                } catch (e) {
+                    return;
+                }
+            });
+
+            // On resume, Teams tells us via ResumeContext what page it thinks
+            // should be showing (contentUrl). This is a client-side navigation
+            // using the already-authenticated session — deliberately NOT
+            // reusing TeamsSsoController's conversationId/token logic, since
+            // there's no fresh SSO token here to validate; that's a separate
+            // server-side concern for the initial handoff only.
+            lifecycle.registerOnResumeHandler(function (context) {
+                try {
+                    var targetHref = context && context.contentUrl ? String(context.contentUrl) : null;
+                    if (targetHref && targetHref !== window.location.href) {
+                        window.location.replace(targetHref);
+                    }
+                } catch (e) { }
+                try {
+                    microsoftTeams.app.notifySuccess();
+                } catch (e) { }
+            });
+        } catch (e) {
+            // Beta API missing/changed shape — silently keep today's behavior.
+        }
+    }
+
+    loadTeamsSdk(function() {
+        if (typeof microsoftTeams !== 'undefined' && !_msTeamsInitDone) {
+            _msTeamsInitDone = true;
+            microsoftTeams.app.initialize().then(function() {
+                registerLifecycleHandlers();
+                setupLinkInterception();
+            }).catch(function() {
+                setupLinkInterception();
+            });
+        } else {
+            setupLinkInterception();
+        }
+    });
 
     // EXPERIMENTAL (v1.2.6) — not a confirmed fix, see README changelog.
     //
@@ -76,9 +166,11 @@ var _msTeamsInitDone = false;
     // "Go to Homepage". Confirmed via debug logging that this never reaches
     // TeamsSsoController::handoff() at all -- something is serving a stale
     // page before our SSO code ever runs. Teams' own official app-lifecycle
-    // resume handler (app.lifecycle.registerOnResumeHandler) explicitly does
-    // NOT support Android (Microsoft's own docs: Desktop/iOS only), so that
-    // official channel isn't available for this exact platform.
+    // resume handler (app.lifecycle.registerOnResumeHandler, implemented above
+    // as of v1.4.0) explicitly does NOT support Android (Microsoft's own docs:
+    // Desktop/iOS only), so that official channel isn't available for this
+    // exact platform — this pageshow-based mechanism remains Android's only
+    // (unofficial, unconfirmed) route to the same class of fix.
     //
     // pageshow + event.persisted is a real, current, still-correct mechanism
     // (MDN: Baseline widely available since 2015, unrelated to and unchanged

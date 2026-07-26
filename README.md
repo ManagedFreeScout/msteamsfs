@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.4.1
+**Version:** 1.4.2
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -120,7 +120,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.4.1
+├── version.txt                          1.4.2
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -141,6 +141,36 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.4.2 (2026-07-26) — ❌ REVERTED: Teams does not honor app.lifecycle suspension in practice
+
+**The v1.4.0/1.4.1 Desktop/iOS tab-suspend/resume experiment is reverted.** Live testing
+gave a decisive, unambiguous result: after a real tab-switch-and-back on Desktop Teams,
+the full SSO chain (auth → `/teams-sso-handoff` redirect → fresh document load) ran again
+in its entirety — identical to pre-1.4.0 behavior. The v1.4.1 diagnostic build's own
+timestamped logging confirmed this wasn't a registration-timing problem on our side (the
+leading theory going in): the handlers registered, but Teams simply did not honor the
+suspension in this real environment regardless of timing or correctness.
+
+Given `microsoftTeams.app.lifecycle` is Microsoft's own Beta API, explicitly documented as
+**"not for production use,"** and we now have direct, live-tested proof it isn't honored
+in practice here, the decision is to stop investigating a Beta feature Microsoft hasn't
+finished building, rather than keep chasing workarounds for it.
+
+**What was reverted:** `msteamsfs.js` is restored to its exact v1.3.0 behavior (confirmed
+via `git show` against commit `ff0bb15`, byte-for-byte) — dynamic TeamsJS SDK loading, both
+`app.lifecycle` handler registrations, and all `[MSTeamsFS-DEBUG-LIFECYCLE]` diagnostic
+logging are all removed. Retained, as before: the `data-trigger="modal"` click-interceptor
+fix and the `pageshow`/`persisted` listener (Android's separate, already-addressed,
+unrelated concern).
+
+**Net practical effect:** tab-switch-and-back on Desktop/iOS goes back to a full ~2-4s
+SSO re-handoff every time — the same behavior as before this whole experiment (v1.3.0 and
+earlier). No regression, no improvement; back to known-good baseline.
+
+**For future reference:** revisit tab-suspend/resume only once Microsoft moves
+`app.lifecycle` out of Beta — re-check the current docs at that time rather than assuming
+this write-up (or the API shape it describes) is still accurate.
 
 ### 1.4.1 (2026-07-25) — ⚠️ TEMPORARY DEBUG BUILD, NOT A FIX
 

@@ -17,6 +17,291 @@ class LicenseService
         $this->licenseServerUrl = config("msteamsfs.license_server_url", 'https://your-wordpress-site.com');
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    // invAIse (current provider) — replaces DLM as of the 2026-07 migration.
+    // See PRODUCT.md/README.md "MSTeamsFS DLM -> invAIse migration" for context.
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * Maps invAIse's status vocabulary to a human-readable message — the
+     * direct replacement for mapDLMErrors()/DLM's own error text, since
+     * invAIse's status strings are already normalized (no free-text parsing
+     * needed, unlike DLM's error codes).
+     */
+    private function invaiseStatusMessage(string $status): string
+    {
+        switch ($status) {
+            case 'active':
+                return __('License is active.');
+            case 'expired':
+                return __('License has expired.');
+            case 'suspended':
+                return __('License has been suspended.');
+            case 'not_activated_for_domain':
+                return __('License is valid but has not been activated for this domain.');
+            case 'not_found':
+                return __('License key not found.');
+            case 'no_activations_left':
+                return __('No activations remaining for this license.');
+            default:
+                return __('License validation failed.');
+        }
+    }
+
+    /**
+     * Performs the actual signed HTTP call to invAIse's license API. Uses
+     * GuzzleHttp\Client directly (not the Http:: facade) — same pattern
+     * already established in MSTeamsFSServiceProvider's Teams notify call,
+     * relying on FreeScout core's bundled Guzzle rather than adding a
+     * module-level dependency.
+     *
+     * Returns ['status' => int, 'data' => array] on a completed HTTP
+     * round-trip (regardless of 2xx/4xx — invAIse returns a normal JSON body
+     * even for 404 "not_found"), or null if the request could not be made at
+     * all (credentials missing, network/connection failure).
+     */
+    protected function invaiseRequest(string $endpoint, array $body): ?array
+    {
+        $baseUrl   = rtrim(config('msteamsfs.invaise_base_url', 'https://acc.invaise.com'), '/');
+        $apiKey    = config('msteamsfs.invaise_api_key', '');
+        $apiSecret = config('msteamsfs.invaise_api_secret', '');
+
+        if (empty($apiKey) || empty($apiSecret)) {
+            \Log::error(__('invAIse API credentials not configured (msteamsfs.invaise_api_key / msteamsfs.invaise_api_secret) — cannot reach license server.'));
+            return null;
+        }
+
+        try {
+            $client = new \GuzzleHttp\Client(['timeout' => 15]);
+            $response = $client->request('POST', $baseUrl . $endpoint, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $apiKey . ':' . $apiSecret,
+                    'Content-Type'  => 'application/json',
+                    'Accept'        => 'application/json',
+                ],
+                'json'        => $body,
+                'http_errors' => false, // 404/4xx still carry a real JSON body from invAIse — decode it ourselves
+            ]);
+
+            $status = $response->getStatusCode();
+            $data   = json_decode((string) $response->getBody(), true);
+            if (!is_array($data)) {
+                \Log::error(__('invAIse API returned a non-JSON response (status :status)', ['status' => $status]));
+                return null;
+            }
+
+            return ['status' => $status, 'data' => $data];
+        } catch (\Exception $e) {
+            \Log::error(__('invAIse API request failed: ') . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Pure mapping from invAIse's raw response body to this module's internal
+     * result shape — deliberately has NO side effects (no DB writes, no HTTP
+     * calls) so it can be tested in isolation with mocked payloads covering
+     * every status value, product mismatch, and seats present/absent.
+     *
+     * $rawResult is the ['status'=>, 'data'=>] shape from invaiseRequest(),
+     * or null if the request itself couldn't be made.
+     */
+    private function mapInvaiseResponse(?array $rawResult): array
+    {
+        if ($rawResult === null) {
+            return [
+                'success' => false,
+                'valid'   => false,
+                'status'  => 'error',
+                'message' => __('Could not reach invAIse license server.'),
+            ];
+        }
+
+        $data    = $rawResult['data'];
+        $valid   = (bool) ($data['valid'] ?? false);
+        $status  = $data['status'] ?? 'error';
+        $product = $data['product'] ?? null;
+
+        // Product mismatch check — the direct replacement for DLM's product_id
+        // comparison. Only meaningful when the key is otherwise valid; an
+        // already-invalid/not_found key has no product to compare.
+        $expectedProduct = config('msteamsfs.invaise_product_name', 'MSTeamsFS - FreeScout in MS Teams monthly subscription');
+        if ($valid && $product !== null && (string) $product !== (string) $expectedProduct) {
+            return [
+                'success' => false,
+                'valid'   => false,
+                'status'  => 'product_mismatch',
+                'message' => __('License validation failed: product mismatch. Expected: :expected, Got: :got', [
+                    'expected' => $expectedProduct,
+                    'got'      => $product,
+                ]),
+            ];
+        }
+
+        $result = [
+            'success'           => $valid,
+            'valid'             => $valid,
+            'status'            => $status,
+            'message'           => $this->invaiseStatusMessage($status),
+            'data'              => $data,
+            'activations_used'  => $data['activations_used']  ?? null,
+            'activations_limit' => $data['activations_limit'] ?? null,
+            'expires_at'        => $data['expires_at'] ?? null,
+        ];
+
+        // Deliberately omit seats_purchased/seats_occupied entirely when
+        // absent (rather than nulling them in) — matches invAIse's own
+        // validate() contract of only including these fields when a seats
+        // entitlement actually exists for the license. A future
+        // settings-page seats display (not built in this task, per the
+        // original handoff's explicit sequencing) can check
+        // array_key_exists() to know whether seats apply at all.
+        if (array_key_exists('seats_purchased', $data)) {
+            $result['seats_purchased'] = $data['seats_purchased'];
+        }
+        if (array_key_exists('seats_occupied', $data)) {
+            $result['seats_occupied'] = $data['seats_occupied'];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Persists a validate/activate result to the local modules_licenses
+     * cache — same table/shape getLicenseStatus() reads, unchanged.
+     */
+    private function persistInvaiseResult(string $licenseKey, string $domain, array $mapped): void
+    {
+        if (!isset($mapped['data'])) {
+            return; // error/unreachable case — nothing meaningful to cache
+        }
+
+        $expiresAt = null;
+        if (!empty($mapped['expires_at'])) {
+            try {
+                $expiresAt = \Carbon\Carbon::parse($mapped['expires_at']);
+            } catch (\Exception $e) {
+                $expiresAt = null;
+            }
+        }
+
+        $updateData = [
+            'license_key'   => $licenseKey,
+            'is_valid'      => $mapped['valid'],
+            'status'        => $mapped['status'],
+            'domain'        => $domain,
+            'response_data' => $mapped['data'],
+        ];
+        if ($expiresAt) {
+            $updateData['expires_at'] = $expiresAt;
+        }
+
+        $license = MSTeamsFSLicense::firstOrCreate([], ['license_key' => $licenseKey]);
+        $license->update($updateData);
+    }
+
+    protected function activateLicenseViaInvaise($licenseKey, $domain = null)
+    {
+        if (!$domain) {
+            $domain = request()->getHttpHost();
+        }
+
+        // Same FreeScout-level guard the DLM path had — unrelated to which
+        // license backend is in use, so preserved here too.
+        $existing = \DB::table('modules_licenses')
+            ->where('license_key', $licenseKey)
+            ->where('module_alias', '!=', 'msteamsfs')
+            ->first();
+        if ($existing) {
+            return [
+                'success' => false,
+                'valid'   => false,
+                'message' => __("This license key is already in use by the ':module' module.", ['module' => $existing->module_alias]),
+            ];
+        }
+
+        $raw    = $this->invaiseRequest('/api/v1/license/activate', [
+            'license_key' => $licenseKey,
+            'domain'      => $domain,
+        ]);
+        $mapped = $this->mapInvaiseResponse($raw);
+
+        if ($mapped['valid']) {
+            $this->persistInvaiseResult($licenseKey, $domain, $mapped);
+        }
+
+        return $mapped;
+    }
+
+    protected function validateLicenseViaInvaise($licenseKey, $domain = null)
+    {
+        if (!$domain) {
+            $domain = request()->getHttpHost();
+        }
+
+        $raw    = $this->invaiseRequest('/api/v1/license/validate', [
+            'license_key' => $licenseKey,
+            'domain'      => $domain,
+        ]);
+        $mapped = $this->mapInvaiseResponse($raw);
+
+        // Persist regardless of valid/invalid here (unlike activate) — a
+        // license that expired since last check needs its local cache
+        // updated to reflect that, same as the old DLM validateLicense() did.
+        if (isset($mapped['data'])) {
+            $this->persistInvaiseResult($licenseKey, $domain, $mapped);
+        }
+
+        return $mapped;
+    }
+
+    protected function deactivateLicenseViaInvaise($licenseKey, $domain = null)
+    {
+        if (!$domain) {
+            $domain = request()->getHttpHost();
+        }
+
+        $raw  = $this->invaiseRequest('/api/v1/license/deactivate', [
+            'license_key' => $licenseKey,
+            'domain'      => $domain,
+        ]);
+
+        if ($raw === null) {
+            return [
+                'success' => false,
+                'message' => __('Could not reach invAIse license server.'),
+            ];
+        }
+
+        $data    = $raw['data'];
+        $success = (bool) ($data['success'] ?? false);
+
+        if ($success) {
+            $license = MSTeamsFSLicense::where('license_key', $licenseKey)->first();
+            if ($license) {
+                $license->update([
+                    'is_valid'      => false,
+                    'status'        => 'inactive',
+                    'response_data' => $data,
+                ]);
+            }
+        }
+
+        return [
+            'success'           => $success,
+            'message'           => $success ? __('License deactivated successfully') : __('License deactivation failed'),
+            'activations_used'  => $data['activations_used']  ?? null,
+            'activations_limit' => $data['activations_limit'] ?? null,
+        ];
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // DLM (legacy) — kept callable for rollback only. Not called unless
+    // msteamsfs.license_provider is explicitly set to 'dlm'. Bodies below
+    // are unchanged from before the migration, just renamed with a
+    // ViaDLM suffix.
+    // ════════════════════════════════════════════════════════════════════
+
     /**
      * Get or initialize the DLM client with proper authentication
      */
@@ -46,7 +331,7 @@ class LicenseService
     /**
      * Validate the license key with the license server using DLM-PHP package
      */
-    public function validateLicense($licenseKey, $domain = null)
+    protected function validateLicenseViaDLM($licenseKey, $domain = null)
     {
         if (!$domain) {
             $domain = request()->getHttpHost();
@@ -86,7 +371,7 @@ class LicenseService
             }
 
             $response = $client->licenses()->validate($token);
-            
+
             // Check if response is an error
             if ($response instanceof \IdeoLogix\DigitalLicenseManagerClient\Http\Responses\Error) {
                 return [
@@ -114,7 +399,7 @@ class LicenseService
                     // Extract license information if present
                     if (isset($data['license'])) {
                          $licenseInfo = $data['license'];
-                         
+
                          // Validate Product ID if present in validation response
                          $configProductId = config('msteamsfs.product_id');
                          if (isset($licenseInfo['product_id']) && !empty($configProductId)) {
@@ -144,7 +429,7 @@ class LicenseService
 
                 // Update or create license record
                 // Note: validated response might not contain full license info like expiry if it's just a token validation
-                
+
                 $updateData = [
                     "license_key" => $licenseKey,
                     "is_valid" => $isValid,
@@ -191,7 +476,7 @@ class LicenseService
     /**
      * Activate the license with the license server using DLM-PHP package
      */
-    public function activateLicense($licenseKey, $domain = null)
+    protected function activateLicenseViaDLM($licenseKey, $domain = null)
     {
         if (!$domain) {
             $domain = request()->getHttpHost();
@@ -276,7 +561,7 @@ class LicenseService
                                 $expires_at = null;
                             }
                         }
-                        
+
                         // Check explicit expiration flag
                         if (isset($licenseInfo['is_expired']) && $licenseInfo['is_expired']) {
                             $status = 'expired';
@@ -334,7 +619,7 @@ class LicenseService
     /**
      * Deactivate the license with the license server
      */
-    public function deactivateLicense($licenseKey, $domain = null)
+    protected function deactivateLicenseViaDLM($licenseKey, $domain = null)
     {
         if (!$domain) {
             $domain = request()->getHttpHost();
@@ -467,6 +752,37 @@ class LicenseService
         return null;
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    // Public entry points — dispatch to invAIse or DLM based on
+    // msteamsfs.license_provider ('invaise' default, 'dlm' for rollback).
+    // Callers (MSTeamsFSController, ServiceProvider's weekly schedule) are
+    // unchanged — they still call these same three method names.
+    // ════════════════════════════════════════════════════════════════════
+
+    public function activateLicense($licenseKey, $domain = null)
+    {
+        if (config('msteamsfs.license_provider', 'invaise') === 'dlm') {
+            return $this->activateLicenseViaDLM($licenseKey, $domain);
+        }
+        return $this->activateLicenseViaInvaise($licenseKey, $domain);
+    }
+
+    public function validateLicense($licenseKey, $domain = null)
+    {
+        if (config('msteamsfs.license_provider', 'invaise') === 'dlm') {
+            return $this->validateLicenseViaDLM($licenseKey, $domain);
+        }
+        return $this->validateLicenseViaInvaise($licenseKey, $domain);
+    }
+
+    public function deactivateLicense($licenseKey, $domain = null)
+    {
+        if (config('msteamsfs.license_provider', 'invaise') === 'dlm') {
+            return $this->deactivateLicenseViaDLM($licenseKey, $domain);
+        }
+        return $this->deactivateLicenseViaInvaise($licenseKey, $domain);
+    }
+
     /**
      * Perform an action (activate, deactivate, validate) on the license
      */
@@ -487,9 +803,6 @@ class LicenseService
     }
 
     /**
-     * Get the current license status
-     */
-    /**
      * Quick static check — true if a valid license record exists in the DB.
      */
     public static function isLicensed(): bool
@@ -501,6 +814,11 @@ class LicenseService
         }
     }
 
+    /**
+     * Get the current license status — PURE LOCAL READ, no remote call.
+     * Unchanged by the DLM -> invAIse migration (per explicit instruction:
+     * this method doesn't touch DLM or invAIse, leave it alone).
+     */
     public function getLicenseStatus()
     {
         // Check if table exists first

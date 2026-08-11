@@ -142,6 +142,62 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.5.0 (2026-07-28) — DLM deprecated in favor of invAIse's License Validation API
+
+**License validation now goes through invAIse, not the old WordPress Digital License
+Manager (DLM).** `Services/LicenseService.php`'s three remote-calling methods
+(`activateLicense`, `validateLicense`, `deactivateLicense`) now call invAIse's
+`/api/v1/license/{activate,validate,deactivate}` endpoints instead of DLM's REST API.
+`getLicenseStatus()` (pure local read of `modules_licenses`, no remote call) is
+completely unchanged.
+
+**Rollback path preserved, not deleted:** the original DLM logic is intact, renamed with
+a `ViaDLM` suffix (`activateLicenseViaDLM()`, etc.) and still fully callable — set
+`msteamsfs.license_provider` (env `MSTEAMSFS_LICENSE_PROVIDER`) to `dlm` to route back to
+it. Default is `invaise`.
+
+**Response mapping:** invAIse's status vocabulary
+(`active`/`expired`/`suspended`/`not_activated_for_domain`/`not_found`/`no_activations_left`)
+is mapped to human-readable messages via a new `invaiseStatusMessage()` — the direct
+replacement for `mapDLMErrors()`'s free-text parsing (invAIse's statuses are already
+normalized strings, no parsing needed). The `product` field returned by invAIse is
+compared against `msteamsfs.invaise_product_name` (defaults to the exact seeded Activity
+name, `"MSTeamsFS - FreeScout in MS Teams monthly subscription"`, confirmed live against
+`invaise_acc.activities`) — the direct replacement for DLM's `product_id` check.
+`seats_purchased`/`seats_occupied` (new, only present on licenses with a seats
+entitlement — see the invAIse-side seats/entitlements work) are passed through
+unchanged when invAIse includes them, and omitted entirely from this method's return
+value when absent — not built into any UI yet, per the original task's explicit
+sequencing (settings-page display is separate future work, once this is confirmed live).
+
+**New config keys** (`Config/config.php`, all via `.env`): `MSTEAMSFS_LICENSE_PROVIDER`,
+`MSTEAMSFS_INVAISE_BASE_URL` (default `https://acc.invaise.com` — ACC first, per usual
+discipline), `MSTEAMSFS_INVAISE_API_KEY`, `MSTEAMSFS_INVAISE_API_SECRET`,
+`MSTEAMSFS_INVAISE_PRODUCT_NAME`.
+
+**⚠️ `MSTEAMSFS_INVAISE_API_KEY`/`MSTEAMSFS_INVAISE_API_SECRET` are placeholders — no
+real value provided this session.** These must be StackPros's own invAIse tenant
+`license_api_key`/`license_api_secret` (generated from the Organisation page), filled in
+via `.env` before any of this actually reaches invAIse. Until set, every call fails
+closed (`invaiseRequest()` logs an error and returns `null` — never silently reports a
+license as valid).
+
+**Tested this session:** PHP syntax check (`php -l`) on both changed files. The pure
+response-mapping logic (`mapInvaiseResponse()` — the part with actual branching logic:
+product-mismatch detection, status-to-message mapping, seats pass-through) was verified
+with a standalone mock-payload test harness covering all six status values, a product
+mismatch, seats present/absent, and an unreachable-server case — 20/20 assertions passed,
+run directly against the real deployed file via PHP Reflection (not a reimplementation).
+
+**Not tested this session, explicitly out of scope:** end-to-end against the real remote
+FreeScout install (`support.stackpros.io`) — there is no local FreeScout install on this
+VPS to test against (confirmed: no `artisan` file anywhere, no MySQL/MariaDB, no Docker).
+**Follow-up manual verification needed:** once real invAIse credentials are filled in,
+deploy this version to `support.stackpros.io` and manually test activate/validate/
+deactivate against a real invAIse-issued license key, including the currently-untested
+`request()->getHttpHost()` domain-detection path and the "already in use by another
+module" guard.
+
 ### 1.4.2 (2026-07-26) — ❌ REVERTED: Teams does not honor app.lifecycle suspension in practice
 
 **The v1.4.0/1.4.1 Desktop/iOS tab-suspend/resume experiment is reverted.** Live testing

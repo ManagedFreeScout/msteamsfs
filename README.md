@@ -142,6 +142,20 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.5.1 (2026-08-19) — Seats display on the settings page
+
+**The settings page now shows "Seats: X of Y used" for licenses with a seats entitlement.**
+1.5.0 already had invAIse's `seats_purchased`/`seats_occupied` flowing through
+`mapInvaiseResponse()` and into the cached `response_data` on every activate/validate call,
+but nothing ever read it back out — `getLicenseStatus()` (what the settings page actually
+renders) didn't expose it, so the values were captured and then silently discarded on every
+page load. No new migration needed: `response_data` already stores invAIse's raw response
+verbatim, so `getLicenseStatus()` now just reads `seats_purchased`/`seats_occupied` back out
+of it (same `array_key_exists()` discipline as the original mapping — omitted entirely for a
+non-seats license, not shown as zero). This is a read of the last-known snapshot from the most
+recent activate/validate call, not a live re-check on every page load; use the existing
+Activate button to refresh it.
+
 ### 1.5.0 (2026-07-28) — DLM deprecated in favor of invAIse's License Validation API
 
 **License validation now goes through invAIse, not the old WordPress Digital License

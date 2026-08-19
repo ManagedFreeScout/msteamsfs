@@ -4,6 +4,12 @@
     $status = $licenseStatus['status'] ?? 'inactive';
     $licenseKey = $licenseStatus['license_key'] ?? '';
     $message = $licenseStatus['message'] ?? '';
+    // Card #34 (invAIse board): only present at all when this license actually has a seats
+    // entitlement (array_key_exists discipline all the way from invAIse's own API response) --
+    // absent entirely for a non-seats product, not just zero.
+    $hasSeats = array_key_exists('seats_purchased', $licenseStatus);
+    $seatsPurchased = $licenseStatus['seats_purchased'] ?? null;
+    $seatsOccupied = $licenseStatus['seats_occupied'] ?? null;
 @endphp
 
 <div class="row">
@@ -22,6 +28,13 @@
                         </div>
                     @endif
                 </div>
+
+                @if($isValid && $hasSeats)
+                    <div class="seats-status-message">
+                        <i class="glyphicon glyphicon-user"></i>
+                        {{ __('Seats: :occupied of :purchased used', ['occupied' => $seatsOccupied ?? '?', 'purchased' => $seatsPurchased]) }}
+                    </div>
+                @endif
 
                 <form id="license-management-form" class="form-horizontal margin-top">
                     {{ csrf_field() }}

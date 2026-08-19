@@ -841,7 +841,7 @@ class LicenseService
                 ];
             }
 
-            return [
+            $status = [
                 "valid" => $license->isValid(),
                 "status" => $license->status,
                 "license_key" => $license->license_key,
@@ -849,6 +849,22 @@ class LicenseService
                 "is_expired" => $license->isExpired(),
                 "license_type" => $license->license_type
             ];
+
+            // Card #34 (invAIse board): response_data already carries invAIse's raw
+            // validate/activate payload verbatim (persistInvaiseResult saves $mapped['data']
+            // unchanged) -- seats_purchased/seats_occupied were already flowing into it, just
+            // never read back out for display. Same array_key_exists discipline as
+            // mapInvaiseResponse() above: omit entirely rather than null, so the view can tell
+            // "no seats entitlement" apart from "seats data not loaded yet".
+            $responseData = is_array($license->response_data) ? $license->response_data : [];
+            if (array_key_exists('seats_purchased', $responseData)) {
+                $status['seats_purchased'] = $responseData['seats_purchased'];
+            }
+            if (array_key_exists('seats_occupied', $responseData)) {
+                $status['seats_occupied'] = $responseData['seats_occupied'];
+            }
+
+            return $status;
         } catch (\Exception $e) {
             return [
                 "valid" => false,

@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.4.2
+**Version:** 1.5.2
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -120,7 +120,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.4.2
+├── version.txt                          1.5.2
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -141,6 +141,41 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.2 (2026-09-22) — On-demand Refresh for the Seats line
+
+**Added a "Refresh" link next to the Seats line on the settings page.** 1.5.1 made the
+Seats line show up at all, but it still only ever reflected the last Activate/Deactivate
+snapshot — there was no way to pull a current count without cycling the license (deactivate
+then reactivate), which nobody would think to do just to check seat usage. Root-caused during
+a real invAIse-side investigation (invaise board #227): a seat freed or reduced on invAIse's
+own Subscriptions page had no way to reach this display at all, by design (deliberately not a
+live check on every page load, to avoid an outbound API call on every settings-page view).
+
+**What changed:**
+- `manageLicense()` now accepts a `validate` action alongside the existing `activate`/
+  `deactivate` — calls `LicenseService::validateLicense()` against whichever license key is
+  already stored, same as `deactivate` already does (no license key needs to be typed into the
+  input field first).
+- `license.blade.php`: a small "Refresh" button next to the Seats line, wired through the
+  exact same AJAX/reload flow the Activate/Deactivate buttons already use — no new JS pattern,
+  just one more action on the same endpoint.
+
+**Deliberately NOT built:** an automatic live-check on every page load. Discussed directly —
+an explicit Refresh button keeps this an admin action taken with intent, and keeps normal page
+loads exactly as fast as before (a live check would add a real network round-trip, up to the
+existing 15s timeout, to every single page view).
+
+**Also fixed:** this README's own `**Version:**` header and the `version.txt` line in the
+files-tree diagram had drifted stale again (stuck at 1.4.2 despite the module actually being on
+1.5.1) — the same kind of drift the 1.3.0 changelog entry below already flagged and fixed once
+before. Reconciled to 1.5.2.
+
+**Not tested against a real live FreeScout instance this session** — same standing limitation
+as every prior release: there is no FreeScout install on this VPS, only the dev copy and the
+GitHub-published release. PHP syntax checked (`php -l`) on both changed files. Rutger to
+confirm via Manage → Modules → Update Now, then click the new Refresh link and confirm the
+Seats number updates without a full Deactivate/Activate cycle.
 
 ### 1.5.1 (2026-08-19) — Seats display on the settings page
 

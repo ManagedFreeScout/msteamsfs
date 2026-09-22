@@ -57,7 +57,13 @@ class MSTeamsFSController extends Controller
         $action = $request->input('action');
         $licenseKey = $request->input('license_key');
 
-        if (empty($licenseKey) && $action !== 'deactivate') {
+        // 'validate' added 2026-09-22 (invaise#227 follow-up): the Seats line only ever
+        // reflects the last activate/validate snapshot, and nothing previously called
+        // validate from anywhere in this settings page's own UI -- only activate, which
+        // never surfaced a way to refresh seat counts on demand. Doesn't need a posted
+        // license_key any more than deactivate does -- both operate on whatever key is
+        // already stored, not a value typed into the (possibly-empty) input field.
+        if (empty($licenseKey) && !in_array($action, ['deactivate', 'validate'], true)) {
             return response()->json([
                 'status' => 'error',
                 'message' => __('License key is required.')
@@ -72,6 +78,10 @@ class MSTeamsFSController extends Controller
                 $licenseStatus = $licenseService->getLicenseStatus();
                 $licenseKey = $licenseStatus['license_key'] ?? $licenseKey;
                 $result = $licenseService->deactivateLicense($licenseKey);
+                break;
+            case 'validate':
+                $licenseKey = $licenseStatus['license_key'] ?? $licenseKey;
+                $result = $licenseService->validateLicense($licenseKey);
                 break;
             default:
                 return response()->json([

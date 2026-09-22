@@ -33,6 +33,9 @@
                     <div class="seats-status-message">
                         <i class="glyphicon glyphicon-user"></i>
                         {{ __('Seats: :occupied of :purchased used', ['occupied' => $seatsOccupied ?? '?', 'purchased' => $seatsPurchased]) }}
+                        <button type="button" class="btn btn-link btn-xs" id="refresh-seats-btn" style="padding:0 0 0 6px;vertical-align:baseline">
+                            <i class="glyphicon glyphicon-refresh"></i> {{ __('Refresh') }}
+                        </button>
                     </div>
                 @endif
 
@@ -162,6 +165,7 @@
                 document.addEventListener('DOMContentLoaded', function() {
                     const activateBtn = document.getElementById('activate-license-btn');
                     const deactivateBtn = document.getElementById('deactivate-license-btn');
+                    const refreshSeatsBtn = document.getElementById('refresh-seats-btn');
 
                     if (activateBtn) {
                         activateBtn.setAttribute('data-license-action', 'activate');
@@ -174,6 +178,20 @@
                         deactivateBtn.setAttribute('data-license-action', 'deactivate');
                         deactivateBtn.addEventListener('click', function() {
                             performLicenseAction('deactivate');
+                        });
+                    }
+
+                    // invaise#227 follow-up (2026-09-22): on-demand refresh for the Seats
+                    // line -- this page only ever shows the last activate/validate snapshot,
+                    // so an admin who just changed the seat count elsewhere (or freed a seat)
+                    // needs an explicit way to pull the current number, not wait for the next
+                    // Activate click. Reuses the exact same AJAX/reload flow as
+                    // activate/deactivate above -- 'validate' is just another action on the
+                    // same endpoint.
+                    if (refreshSeatsBtn) {
+                        refreshSeatsBtn.setAttribute('data-license-action', 'validate');
+                        refreshSeatsBtn.addEventListener('click', function() {
+                            performLicenseAction('validate');
                         });
                     }
                 });

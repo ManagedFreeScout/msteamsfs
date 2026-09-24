@@ -26,6 +26,14 @@ class TeamsSsoController extends Controller
             return $this->errorResponse('Missing token.', 401);
         }
 
+        // Preserve the EXACT string as received, before any mutation -- this is
+        // what the hub hashed at issuance (Node's base64url encoding never pads),
+        // and it's what must be sent to /teams/consume-handoff later. Hotfix,
+        // card #232: v1.5.4 padded $tokenEncoded in place below and then sent the
+        // now-PADDED string to consume-handoff, which never matched the hub's
+        // stored (unpadded) hash -- every login failed as "already used/expired."
+        $rawTokenForHub = $tokenEncoded;
+
         // Decode the base64url outer envelope.
         // Token format: base64url(JSON.stringify({ payload: payloadString, sig: hmacHex }))
         $remainder = strlen($tokenEncoded) % 4;
@@ -116,7 +124,7 @@ class TeamsSsoController extends Controller
                 $backendUrl . '/teams/consume-handoff',
                 array_merge(\Helper::setGuzzleDefaultOptions(['timeout' => 5]), [
                     'headers'     => ['Content-Type' => 'application/json'],
-                    'json'        => ['token' => $tokenEncoded],
+                    'json'        => ['token' => $rawTokenForHub],
                     'http_errors' => false,
                 ])
             );

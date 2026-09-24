@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.4
+**Version:** 1.5.5
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -141,6 +141,47 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.5 (2026-09-24) — Hotfix: v1.5.4 broke ALL Teams sign-ins
+
+**Regression, introduced by 1.5.4 (F3), caught within the hour by Rutger's own
+real sign-in attempt:** every single Teams sign-in failed with "This sign-in
+link has already been used or has expired," even on a freshly reloaded tab
+with a brand-new token.
+
+**Root cause:** `handoff()` decodes the base64url token by padding it with
+`=` characters in place (`$tokenEncoded .= str_repeat('=', ...)`) before
+`base64_decode()` — pre-existing code, unchanged by 1.5.4. But 1.5.4 then
+sent that same, now-*padded*, `$tokenEncoded` to the hub's new
+`/teams/consume-handoff` endpoint. The hub hashes whatever string it's given
+and compares it against the hash it stored at issuance — computed from
+Node's `base64url` encoding, which never pads. A padded string never hashes
+to the same value as its unpadded original, so the hub reported "unknown
+token" for literally every request, indistinguishable from a genuine replay.
+
+**Fix:** capture the token string in a new variable (`$rawTokenForHub`)
+*before* the padding step, and send that (unpadded, exactly-as-issued)
+value to `/teams/consume-handoff` instead of the by-then-mutated
+`$tokenEncoded`.
+
+**Timeline:** v1.5.4 released and installed on the real production
+FreeScout instance same-day; Rutger reported the failure on his very next
+real sign-in attempt. Hotfixed directly on the live instance first (fastest
+unblock), then propagated through the normal dev-copy → mirror → tagged
+release channel for this version, so the source of truth and the live
+instance match exactly — diffed byte-for-byte to confirm before tagging.
+
+**Tested:** `php -l` on all three copies (live, dev, mirror) — clean. Not
+re-tested against a live Teams sign-in from this end before release (Rutger
+was asked to retry directly against the live hotfix); if that retry surfaces
+anything further, it'll be captured in a follow-up entry.
+
+**Process note for next time:** this is exactly the kind of bug that field
+end-to-end testing catches and simulation doesn't — the earlier
+before/after simulation for F1 exercised real logic in isolation, but F3's
+release notes explicitly said the PHP side was "not tested end-to-end." A
+same-day live verification (which is what caught this) should be the norm
+for any change to this file going forward, not an occasional bonus.
 
 ### 1.5.4 (2026-09-24) — Real single-use enforcement on the handoff token (F3)
 

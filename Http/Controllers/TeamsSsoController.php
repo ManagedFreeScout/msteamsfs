@@ -106,6 +106,24 @@ class TeamsSsoController extends Controller
             );
         }
 
+        // Identity pinning (card #232, F8). Without this, sign-in is ultimately
+        // "whichever Microsoft account currently has this email" -- if an email
+        // address is ever reassigned, or a mailbox compromised, a different real
+        // person's Microsoft account would silently take over access to this
+        // FreeScout user on their very next Teams sign-in, with nothing here to
+        // notice or flag it. Once a user has signed in via Teams before, their
+        // account is pinned to that specific Microsoft identity (oid) going
+        // forward. Skipped entirely when this token has no oid (an
+        // already-accepted "not fatal" gap from the original tid/oid rollout,
+        // 2026-07-15) -- pinning can't be checked or established without one.
+        if ($oid) {
+            $existingLink = \Modules\MSTeamsFS\Entities\TeamsUserLink::where('user_id', $user->id)->first();
+            if ($existingLink && $existingLink->oid && $existingLink->oid !== $oid) {
+                \Log::warning("MSTeamsFS: identity mismatch — FreeScout user {$user->id} ({$email}) previously signed in as oid={$existingLink->oid}, now presenting oid={$oid}. Rejecting.");
+                return $this->errorResponse('Access denied: this FreeScout account is linked to a different Microsoft identity. Please contact your administrator.', 403);
+            }
+        }
+
         // Consume the one-time handoff nonce on the hub (card #232, F3). This is
         // the actual single-use enforcement -- everything checked above (HMAC
         // signature, expiry) stays individually valid for the whole 60-second

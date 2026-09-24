@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.5
+**Version:** 1.5.6
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -141,6 +141,39 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.6 (2026-09-24) — Identity pinning after first sign-in (F8)
+
+**Sign-in ultimately came down to matching an email string.** `allowed_domains`
+is empty by default (so that check is normally a no-op), and nothing verified
+that the Microsoft account presenting a given email was the *same* Microsoft
+account each time. If an email address were ever reassigned, or a mailbox
+compromised, a different real person's Microsoft account would silently take
+over access to that FreeScout user on their very next Teams sign-in — nothing
+here would notice or flag it.
+
+**Fix:** once a FreeScout user has signed in via Teams before, their account
+is now pinned to that specific Microsoft identity (`oid`, the AAD object ID
+— globally stable per account, unlike email). `TeamsUserLink::linkUser()`
+already recorded this on every login (for the notification-linking feature)
+but nothing ever read it back for a security check until now. A sign-in
+presenting a different `oid` than what's on file for that user is rejected
+with a clear error, before the token is even consumed.
+
+**Deliberately skipped when a token has no `oid`** — an already-accepted
+"not fatal" gap from the original tid/oid rollout (2026-07-15, for
+rolling-deploy compatibility). Pinning can't be checked or established
+without one; this doesn't re-litigate that existing tolerance.
+
+**Tested against real production data, read-only, before shipping** (lesson
+learned from 1.5.5's regression): using the live install's own Laravel
+context, the exact patched logic was run against all 4 currently-linked
+real users. Confirmed: a real user presenting their own real `oid` is
+allowed (won't disrupt existing users on their next login); a fabricated
+different `oid` for the same user is rejected; a token with no `oid` is
+allowed through (pinning skipped, matching existing behavior); a user with
+no link yet is allowed through (first-time linking). No data was created,
+updated, or deleted by this test.
 
 ### 1.5.5 (2026-09-24) — Hotfix: v1.5.4 broke ALL Teams sign-ins
 

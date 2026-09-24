@@ -98,6 +98,43 @@ class TeamsSsoController extends Controller
             );
         }
 
+        // Consume the one-time handoff nonce on the hub (card #232, F3). This is
+        // the actual single-use enforcement -- everything checked above (HMAC
+        // signature, expiry) stays individually valid for the whole 60-second
+        // window, so a captured handoff URL was previously replayable that whole
+        // time. Placed as the LAST check, right before granting a session, so a
+        // token that would be rejected for any other reason (unknown user, etc.)
+        // isn't burned for nothing.
+        $backendUrl = rtrim((string) config('msteamsfs.backend_url', ''), '/');
+        if (empty($backendUrl)) {
+            \Log::error('MSTeamsFS: msteamsfs.backend_url not configured — cannot verify handoff token, failing closed');
+            return $this->errorResponse('Module misconfigured. Please contact support.', 500);
+        }
+        try {
+            $consumeResponse = (new \GuzzleHttp\Client())->request(
+                'POST',
+                $backendUrl . '/teams/consume-handoff',
+                array_merge(\Helper::setGuzzleDefaultOptions(['timeout' => 5]), [
+                    'headers'     => ['Content-Type' => 'application/json'],
+                    'json'        => ['token' => $tokenEncoded],
+                    'http_errors' => false,
+                ])
+            );
+            $consumeBody = json_decode((string) $consumeResponse->getBody(), true);
+            if ($consumeResponse->getStatusCode() !== 200 || empty($consumeBody['consumed'])) {
+                \Log::warning('MSTeamsFS: handoff token rejected by hub (already used, expired, or unknown) — possible replay, email=' . $email);
+                return $this->errorResponse('This sign-in link has already been used or has expired. Please reload the Teams tab to sign in again.', 401);
+            }
+        } catch (\Exception $e) {
+            // Deliberately FAILS CLOSED, unlike most other remote checks in this
+            // module (license/seats fail open for availability). This one IS the
+            // security control being added -- silently skipping it on a network
+            // hiccup would defeat the point. If the hub is genuinely unreachable,
+            // sign-in is unavailable until it's back, same as any other outage.
+            \Log::error('MSTeamsFS: consume-handoff request failed — ' . $e->getMessage());
+            return $this->errorResponse('Could not verify sign-in with the ManagedFreeScout backend. Please try again in a moment.', 503);
+        }
+
         // Capture the AAD identity for this login so conversation-event notifications
         // can later be targeted at the right Teams user via Graph's activity feed API.
         if ($tid && $oid) {

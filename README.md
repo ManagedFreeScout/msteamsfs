@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.3
+**Version:** 1.5.4
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -141,6 +141,42 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.4 (2026-09-24) — Real single-use enforcement on the handoff token (F3)
+
+**The "single-use" handoff token wasn't actually single-use.** Three separate
+documents described the 60-second handoff token as replay-protected, but the
+only code that ever touched `teams_handoff_nonces` was a single `INSERT` at
+issuance time on the hub — nothing on either side ever read it back. A
+captured handoff URL (browser history, a proxy log, a shared-hosting access
+log) could be replayed as many times as wanted for its whole 60-second
+window, and each replay logged in with `Auth::login($user, true)` — a
+"remember me" session from a single captured link.
+
+**Fix:** the hub now exposes `POST /teams/consume-handoff`, which atomically
+claims a token's nonce row (`UPDATE ... SET used = true WHERE used = false
+AND expires_at > now() RETURNING ...` — a single statement, so two
+simultaneous replay attempts can't both win the race). `TeamsSsoController::handoff()`
+calls this right before `Auth::login()` — after every other check has
+already passed, so a token that would be rejected for an unrelated reason
+isn't burned for nothing. A rejected or unreachable consume call now fails
+the login instead of silently proceeding.
+
+**Deliberately fails closed, unlike most other remote checks in this
+module** (license and seat checks fail open, favoring availability). This
+one <em>is</em> the security control being added; silently skipping it on a
+network hiccup between the hub and a customer's shared hosting would defeat
+the point. If the hub is genuinely unreachable, sign-in is unavailable until
+it's back — the same tradeoff any single point of authentication makes.
+
+**Tested:** the new hub endpoint was tested directly against a disposable
+test nonce (inserted and cleaned up, not touching any real customer data) —
+first call succeeds, an immediate replay of the same token is rejected with
+409, and an unknown/never-issued token is rejected the same way. Malformed
+input (missing token, invalid JSON, wrong HTTP method) all fail cleanly with
+4xx, no crashes. The module-side PHP change is syntax-checked and carefully
+reviewed but **not tested end-to-end** — same standing limitation as every
+prior release (no FreeScout install on this VPS to run `handoff()` against).
 
 ### 1.5.3 (2026-09-24) — Fix external-link recursion (F1); release packaging hardened (F2)
 

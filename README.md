@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.6
+**Version:** 1.5.7
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -141,6 +141,49 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.7 (2026-09-24) — Shrink license-revocation window; hard staleness cap (F5)
+
+**A cancelled or suspended license could keep working for up to 7 days, or
+indefinitely if invAIse was unreachable.** Sign-in trusts a locally-cached
+license status, refreshed only by a periodic background check (weekly) or
+the manual Refresh button — never by sign-in itself. Deliberate: the Teams
+resign-in flow already re-runs on every tab switch (desktop/browser), so a
+live invAIse call there would add latency to something that already happens
+constantly. But the periodic check itself was too infrequent, and had no
+ceiling — `persistInvaiseResult()` saves nothing when invAIse can't be
+reached, so a stale "valid" status could be trusted forever if invAIse (or
+this install's credentials, or FreeScout's own cron) stayed broken for an
+extended period.
+
+**Rutger's explicit call on the tradeoff:** keep sign-in exactly as fast as
+it is today (no live check added there), accept a bounded delay before a
+cancelled subscription actually stops working, but don't let that delay be
+unbounded.
+
+**Fix, two parts:**
+- The periodic check interval dropped from weekly to **every 6 hours**
+  (`->cron('0 */6 * * *')` — this Laravel version has no
+  `everySixHours()`/`everyNHours()` helper, checked before assuming one
+  existed). Normal-case revocation latency: up to 6 hours instead of up to 7
+  days.
+- A new **14-day staleness cap** in `MSTeamsFSLicense::isValid()`: if the
+  last successful sync with invAIse (`updated_at`, which
+  `persistInvaiseResult()` only bumps on an actual response) is older than
+  14 days, the license is treated as invalid regardless of the cached
+  `is_valid` flag. This is a pure local timestamp comparison — no added
+  latency to sign-in, no network call.
+
+**Tested against real production data before shipping** (read-only, no
+writes): the real license row (last synced 2 days ago) still validates as
+expected; a simulated 20-day-stale timestamp on the same row correctly
+fails; 13 days (just under the cap) correctly still passes;
+`is_valid=false` still fails regardless of freshness. Also ran
+`artisan schedule:run` against the real install to confirm the new cron
+expression registers and the whole scheduler still runs cleanly — an
+invalid method or malformed cron string here would have broken every
+scheduled task on the install, not just this one, so this was checked
+before shipping, not after.
 
 ### 1.5.6 (2026-09-24) — Identity pinning after first sign-in (F8)
 

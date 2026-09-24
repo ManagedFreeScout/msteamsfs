@@ -147,7 +147,16 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             return $scripts;
         }, 20, 1);
 
-        // Weekly license re-validation
+        // License re-validation, every 6 hours (card #232, F5 -- was weekly).
+        // Deliberately NOT a live check at sign-in: the Teams resign-in flow
+        // already re-runs on every tab switch (desktop/browser, confirmed
+        // 2026-08-xx), so adding a network call there would slow down
+        // something that already happens constantly. This periodic check is
+        // the only thing that keeps the locally-cached status (what sign-in
+        // actually reads) from drifting indefinitely out of date -- shrinking
+        // it from weekly to 6-hourly is the whole fix for the common case.
+        // cron() used directly since this Laravel version has no
+        // everySixHours()/everyNHours() helper (checked before using it).
         \Eventy::addAction('schedule', function ($schedule) {
             $schedule->call(function () {
                 $licenseService = app(LicenseService::class);
@@ -155,7 +164,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
                 if (!empty($status['license_key']) && $status['status'] !== 'no_table') {
                     $licenseService->validateLicense($status['license_key']);
                 }
-            })->weekly();
+            })->cron('0 */6 * * *');
         }, 20, 1);
     }
 

@@ -120,7 +120,20 @@ class MSTeamsFSServiceProvider extends ServiceProvider
 
     public function hooks()
     {
-        // Re-add CSP to .htaccess after every FreeScout auto-update
+        // Ensure the CSP .htaccess line is present (card #232, F10). Previously
+        // only ran after a FreeScout core update, so a FRESH install had no
+        // path to get it until the next core update happened -- new customers
+        // could see the Teams tab blocked from framing FreeScout at all until
+        // then. updateHtaccessFile() is idempotent (checks for the exact line,
+        // no-ops if present) and this runs on every boot, so it self-heals a
+        // fresh install immediately without waiting on a separate hook.
+        $this->updateHtaccessFile();
+
+        // Kept in addition to the above: cheap, unconditional call already
+        // covers this case too, but a core update sometimes rewrites .htaccess
+        // wholesale (see the class doc comment on updateHtaccessFile) -- this
+        // hook re-checks (and re-backs-up if needed) right when that happens,
+        // rather than waiting for the next request's boot() to notice.
         \Eventy::addAction('command.after_app_update', function () {
             $this->updateHtaccessFile();
         });

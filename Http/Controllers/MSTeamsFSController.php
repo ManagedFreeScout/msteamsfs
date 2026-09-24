@@ -23,24 +23,12 @@ class MSTeamsFSController extends Controller
         return $this->licenseService;
     }
 
-    public function index()
-    {
-        $settings = [
-            'tenant_id'      => \Option::get('msteamsfs.tenant_id') ?? '',
-            'client_id'      => \Option::get('msteamsfs.client_id') ?? '',
-            'allowed_domains' => \Option::get('msteamsfs.allowed_domains') ?? '',
-            'license_status' => app(LicenseService::class)->getLicenseStatus(),
-        ];
-        return view('msteamsfs::settings.msteamsfs', compact('settings'));
-    }
-
-    public function saveSettings(Request $request)
-    {
-        \Option::set('msteamsfs.tenant_id',      $request->input('tenant_id', ''));
-        \Option::set('msteamsfs.client_id',      $request->input('client_id', ''));
-        \Option::set('msteamsfs.allowed_domains', $request->input('allowed_domains', ''));
-        return redirect()->back()->with('status', __('Settings saved.'));
-    }
+    // index()/saveSettings() removed (card #232, F9) -- dead code, never routed
+    // (see Http/routes.php: only manageLicense and handleModuleLicenseAction
+    // are registered). Wrote to msteamsfs.tenant_id/client_id, options the
+    // real settings page (wired via the settings.* Eventy filters in
+    // MSTeamsFSServiceProvider, using msteamsfs.backend_secret and
+    // msteamsfs.allowed_domains instead) never reads.
 
     public function manageLicense(Request $request)
     {

@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.7
+**Version:** 1.5.8
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -32,7 +32,7 @@ Teams tab (browser)
   │
   └─▶ GET  <freescout_url>/teams-sso-handoff?token=<base64url_token>
             ← THIS MODULE handles this request
-            Verifies HMAC, checks expiry, looks up user, Auth::login(), → /mailboxes
+            Verifies HMAC, checks expiry, looks up user, Auth::login(), → /
 ```
 
 ---
@@ -42,7 +42,10 @@ Teams tab (browser)
 The backend (Express/Node) encodes the token as:
 
 ```javascript
-const tokenPayload = JSON.stringify({ email, exp: Date.now() + 60000 });  // exp in ms
+// tid, oid and conversationId are additive (2026-07-15/17) -- all three are
+// optional in the payload, so a token issued by an old backend build during a
+// rolling deploy still logs the agent in (see TeamsSsoController::handoff()).
+const tokenPayload = JSON.stringify({ email, tid, oid, conversationId: conversationId || null, exp: Date.now() + 60000 });  // exp in ms
 const sig = crypto.createHmac("sha256", backend_secret).update(tokenPayload).digest("hex");
 const token = Buffer.from(JSON.stringify({ payload: tokenPayload, sig })).toString("base64url");
 ```
@@ -141,6 +144,53 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.8 (2026-09-24) — Dead code removed; stale docs corrected; Teams iframe permission set on fresh install (F9, F10)
+
+**F9 — dead code and stale documentation, cleaned up:**
+- Removed `MSTeamsFSController::index()` and `saveSettings()` — never routed
+  (only `manageLicense`/`handleModuleLicenseAction` are, per `Http/routes.php`),
+  and wrote to `msteamsfs.tenant_id`/`client_id` options the real settings
+  page (wired via `settings.*` Eventy filters) never reads.
+- `README.md`'s flow diagram said login redirects to `/mailboxes` — that
+  changed to `/` back in v1.0.1; diagram now matches.
+- `README.md`'s token-format example showed only `{email, exp}` — updated to
+  include `tid`/`oid`/`conversationId`, additive since 2026-07-15/17.
+- `README-install.md` described an entirely different, older prototype
+  (`/teams-entry`, `/teams-sso-login` endpoints, auto-created users, `.env`
+  vars that don't exist in this version) — rewritten to describe the actual
+  current install process (upload via Manage → Modules, Backend Secret in
+  Settings → MSTeams FS, no auto-created users).
+- Two ops docs (not shipped in the module package, fixed in place on the
+  server): `GitHub_Release_Workflow.md` no longer claims this VPS doesn't
+  host evive (it does) or that `cfs-acc` is simply "the same backend" as
+  PROD (it isn't — ACC also runs a webhook receiver and a Claude draft-reply
+  endpoint PROD doesn't have); `TEAMS_SSO.md`'s topology diagram now shows
+  the PROD entry URL as primary instead of only the ACC one.
+
+**F10 — two real operational gaps closed** (the other two F10 items — no
+startup warning for missing PROD env vars, and the weekly check's implicit
+dependency on FreeScout's own cron — are left as-is for now; lower value,
+deferred):
+- **Teams iframe permission (`.htaccess` CSP line) now applied on every
+  boot**, not just after a FreeScout core update. `updateHtaccessFile()` was
+  already idempotent (checks for the exact line, no-ops if present) — it
+  just wasn't being called anywhere except that one hook. A fresh install
+  previously had no path to get this permission until the next core update
+  happened, meaning the Teams tab could be blocked from framing FreeScout at
+  all until then. Verified against the live install: the CSP line was
+  already present (1 occurrence, unchanged after deploying), zero new
+  backup files created — confirms the idempotency guard works exactly as
+  intended in the real environment, not just in theory.
+- **Handoff nonce table cleanup**: this table has grown, unpruned, since the
+  very first release (541 rows as of today, only 15 still within their
+  60-second-plus-a-day retention window). The hub now deletes nonces more
+  than 1 day past expiry, once at startup and then hourly. Deployed to both
+  PROD and ACC; confirmed live — first run deleted exactly the 526 rows past
+  the cutoff. **Found and fixed a blocking issue while shipping this**: the
+  app's own database role had no `DELETE` grant on this table at all (same
+  gap independently noticed during F3's testing cleanup) — granted on both
+  `cfs` and `cfs_acc` before this could work.
 
 ### 1.5.7 (2026-09-24) — Shrink license-revocation window; hard staleness cap (F5)
 

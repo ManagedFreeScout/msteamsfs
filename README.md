@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.2
+**Version:** 1.5.3
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -141,6 +141,50 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.3 (2026-09-24) — Fix external-link recursion (F1); release packaging hardened (F2)
+
+**F1 — external links (target="_blank") silently did nothing inside the Teams tab.**
+`handleLink()`'s fallback branch (used whenever TeamsJS is not available on the page —
+which per README §1.2.6 is every FreeScout page, since TeamsJS is only ever loaded on the
+hub's own entry page) called the bare `window.open(...)`. But `setupLinkInterception()`
+had already replaced the global `window.open` with a wrapper that itself calls
+`handleLink()` for any `_blank` target — so that fallback call re-entered the very
+wrapper that invoked it, recursing until the browser threw a `RangeError`, silently
+swallowed by `handleLink()`'s own `catch(e) {}`. Net effect: every external link (in a
+customer email, or opened by FreeScout itself) did nothing, with no visible error.
+
+**Fix:** capture the true original `window.open` once, at module scope, before anything
+can override it (`_msTeamsOriginalOpen`), and call that directly from the fallback branch
+instead of the (by-then-overridden) global `window.open`.
+
+**Tested:** a sandboxed before/after simulation running the actual file content (not a
+hand-reproduction) confirms the original recurses 2,610 times before this test's own
+Node stack limit and never reaches the real `window.open`; the patched version calls the
+wrapper exactly once and reaches the real `window.open` exactly once. Not yet click-tested
+inside a real Teams client (no FreeScout install on this VPS to test against — same
+standing limitation as every prior release).
+
+**F2 — the public release zip could ship files that were never meant to leave this
+server.** v1.5.2's published GitHub asset contained `SERVER.md`, an internal ops
+document (server IP, hosting control-panel username, real SSH port) that sits,
+untracked, right next to the module's tracked source in this repo's own working tree —
+useful to keep there for whoever maintains this module, but never meant to ship.
+Whatever process built v1.5.2's zip (not definitively identified — it wasn't built via
+a plain `zip -r` of the working tree, since the shipped zip has none of the `.bak` files
+that would imply, but it wasn't git-archive-clean either) picked it up anyway.
+
+**Fix, structural rather than one-off:** `SERVER.md` is now gitignored, and future
+releases are packaged with `git archive` from a tagged commit rather than any form of
+"zip whatever is sitting in the working tree" — so an untracked stray file, of any kind,
+can never ship again regardless of what accumulates in this or any other working
+directory. `release-module.sh` (shared across all ManagedFreeScout modules) has been
+updated accordingly.
+
+**Also done:** the already-published v1.5.2 GitHub release asset has been replaced with a
+clean rebuild from the existing `v1.5.2` git tag (byte-identical to the original except
+for the absence of `SERVER.md` — diffed to confirm before replacing). All 10 releases
+prior to v1.5.2 were checked and do not contain `SERVER.md` or any other unexpected file.
 
 ### 1.5.2 (2026-09-22) — On-demand Refresh for the Seats line
 

@@ -1,4 +1,8 @@
 var _msTeamsInitDone = false;
+// Captured before setupLinkInterception() ever overwrites window.open below.
+// handleLink()'s fallback must call THIS, never the live window.open, or it
+// recurses into its own wrapper forever (card #232, finding F1).
+var _msTeamsOriginalOpen = window.open;
 
 (function() {
     // Only run inside an iframe (Teams)
@@ -17,7 +21,13 @@ var _msTeamsInitDone = false;
             if (typeof microsoftTeams !== 'undefined' && microsoftTeams.app && microsoftTeams.app.openLink) {
                 microsoftTeams.app.openLink(linkUrl.href);
             } else {
-                window.open(linkUrl.href, '_blank');
+                // Fix (v1.5.3, card #232 F1): must call the ORIGINAL window.open, not
+                // the wrapper installed in setupLinkInterception() below -- that wrapper
+                // calls handleLink() again for a '_blank' target, which reaches this
+                // exact branch again, recursing until the browser throws a RangeError
+                // (silently swallowed by the catch below). Only hit when TeamsJS isn't
+                // available on this page at all, so the openLink() branch above never runs.
+                _msTeamsOriginalOpen.call(window, linkUrl.href, '_blank');
             }
         } catch(e) { }
     }
@@ -39,13 +49,12 @@ var _msTeamsInitDone = false;
             handleLink(link.href);
         }, true);
 
-        const originalOpen = window.open;
         window.open = function(url, target, features) {
             if (url && (target === '_blank' || target === undefined || target === null)) {
                 handleLink(url);
                 return null;
             }
-            return originalOpen.apply(this, arguments);
+            return _msTeamsOriginalOpen.apply(this, arguments);
         };
 
         document.addEventListener('submit', function(e) {

@@ -15,3 +15,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Internal ops doc -- never ship this in a release (card #232, finding F2)
+SERVER.md

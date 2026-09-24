@@ -120,23 +120,24 @@ class LicenseService
         $data    = $rawResult['data'];
         $valid   = (bool) ($data['valid'] ?? false);
         $status  = $data['status'] ?? 'error';
-        $product = $data['product'] ?? null;
 
-        // Product mismatch check — the direct replacement for DLM's product_id
-        // comparison. Only meaningful when the key is otherwise valid; an
-        // already-invalid/not_found key has no product to compare.
-        $expectedProduct = config('msteamsfs.invaise_product_name', 'MSTeamsFS - FreeScout in MS Teams monthly subscription');
-        if ($valid && $product !== null && (string) $product !== (string) $expectedProduct) {
-            return [
-                'success' => false,
-                'valid'   => false,
-                'status'  => 'product_mismatch',
-                'message' => __('License validation failed: product mismatch. Expected: :expected, Got: :got', [
-                    'expected' => $expectedProduct,
-                    'got'      => $product,
-                ]),
-            ];
-        }
+        // Product-name comparison removed (card #232, follow-up to F9). It
+        // compared invAIse's response against a hardcoded product NAME -- a
+        // marketing label meant to change freely (renames, new tiers, replaced
+        // plans) -- and would have silently rejected every real customer's
+        // valid license the moment the actual priced product's name ever
+        // differed from whatever string happened to be baked into this file.
+        // invAIse's /validate and /activate are already scoped correctly for
+        // what actually matters here, verified directly against invAIse's own
+        // source rather than assumed: license lookups are keyed to this
+        // tenant's own license_api_key/secret; activation count is enforced
+        // with a row lock (SELECT ... FOR UPDATE OF lk), closing the obvious
+        // race; and a cancelled Stripe subscription cascades to
+        // license_keys.status='suspended' via the real, wired-up
+        // customer.subscription.updated/.deleted webhook handler. Whether a
+        // given key was issued for "the right" product is invAIse's own
+        // checkout/admin concern, not something this module should
+        // re-litigate by comparing a renamable string.
 
         $result = [
             'success'           => $valid,

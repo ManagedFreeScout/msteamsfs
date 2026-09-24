@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.8
+**Version:** 1.5.9
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -144,6 +144,52 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.5.9 (2026-09-24) — Removed the hardcoded product-name comparison entirely
+
+**Follow-up to card #232's F9 discussion, and a genuine design reconsideration, not
+just a bugfix.** `invaise_product_name` (`Config/config.php`) and the "product
+mismatch" check it drove in `LicenseService::mapInvaiseResponse()` are removed
+entirely, not just updated to a non-TEST value.
+
+**Why this is a deletion, not a fix:** the check compared invAIse's response
+against a hardcoded product *name* — a marketing label meant to change
+freely (renames, new tiers, replaced plans). Any such rename would have
+silently rejected every real customer's genuinely valid, paid license the
+moment the actual product's name ever differed from whatever string happened
+to be baked into this file at release time. Tying license validity to a
+renamable label was the wrong design from the start, carried over from the
+old DLM system's `product_id` check without reconsidering whether it still
+made sense under invAIse.
+
+**Why it's safe to remove, verified by reading invAIse's own source directly**
+(not assumed): the actual things that matter are already correctly enforced
+by invAIse itself, independent of this check —
+- License lookups are scoped to this tenant's own `license_api_key`/secret
+  (`WHERE ... AND b.tenant_id = $2`), not global.
+- Activation count is enforced with a row lock
+  (`SELECT ... FOR UPDATE OF lk`) around the check-then-insert sequence in
+  `/activate` — closes the obvious race where two simultaneous activations
+  could both slip past the limit.
+- A cancelled Stripe subscription cascades to
+  `license_keys.status='suspended'` via a real, wired-up
+  `customer.subscription.updated`/`.deleted` webhook handler — confirmed by
+  finding the actual `switch(event.type)` dispatch, not just the handler
+  function existing in isolation.
+
+Whether a given key was issued for "the right" product is invAIse's own
+checkout/admin concern — the checkout flow itself determines which product a
+customer's key belongs to; a downstream module re-verifying that by string
+comparison isn't guarding against anything the customer controls.
+
+**Tested via PHP Reflection against the real deployed method** (pure
+function, no side effects, no network call — same approach already
+established for this file in the 1.5.0 changelog entry): a mock invAIse
+response with a product name that would previously have triggered
+`product_mismatch` now correctly validates; a response with no `product`
+field at all also validates correctly; genuinely invalid/expired/not-found
+responses are unaffected, confirming this change only removed the one
+specific check and nothing else in the surrounding logic.
 
 ### 1.5.8 (2026-09-24) — Dead code removed; stale docs corrected; Teams iframe permission set on fresh install (F9, F10)
 

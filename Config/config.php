@@ -31,15 +31,6 @@ return [
     // an error and every call fails closed (never silently "valid").
     'invaise_api_key'      => env('MSTEAMSFS_INVAISE_API_KEY', ''),
     'invaise_api_secret'   => env('MSTEAMSFS_INVAISE_API_SECRET', ''),
-    // Exact Activity name seeded in invaise's activities table — compared
-    // against invAIse's "product" field to reject a mismatched license, the
-    // direct replacement for DLM's product_id check above. Bootstrap value:
-    // as of 2026-08-11 the only real Activity live in PROD invaise is the TEST
-    // product (id 1, €1/mo) used for the first real end-to-end customer test
-    // (card #101) — there is no non-test "MSTeamsFS" Activity yet. Update this
-    // once a real priced product Activity exists.
-    'invaise_product_name' => env('MSTEAMSFS_INVAISE_PRODUCT_NAME', 'MSTeamsFS - TEST FreeScout in MS Teams monthly subscription'),
-
     // ManagedFreeScout Teams SSO / notification hub — same backend the handoff
     // login flow talks to (see TEAMS_SSO.md). Same value for every customer install
     // (it is our hub, not a per-tenant credential) so it gets a hardcoded default,

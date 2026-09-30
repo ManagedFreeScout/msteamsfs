@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.5.9
+**Version:** 1.6.0
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -69,7 +69,9 @@ Go to **Settings → MSTeams FS** in FreeScout.
 | Field | Description |
 |---|---|
 | **Backend Secret** | 64-char hex string provided by ManagedFreeScout. Stored as `msteamsfs.backend_secret`. |
-| **Allowed Domains** | Optional comma-separated list of email domains (e.g. `stackpros.io,example.com`). Leave blank to allow all. |
+| **Allowed Domains** | Optional comma-separated list of email domains (e.g. `stackpros.io,example.com`). Leave blank to allow all. **Required** for Create Users. |
+| **Create Users** | Off by default. Automatically create a FreeScout user on their first Teams sign-in (role User, never Administrator). Only active together with Allowed Domains. Stored as `msteamsfs.auto_create_users`. The "User Creation" status line shows Off / Not active / Active. |
+| **New users get access to** | Mailboxes an auto-created user gets access to (incl. personal folders). Stored as `msteamsfs.auto_create_mailboxes` (array of mailbox ids; deleted mailboxes are skipped). |
 
 ### CRITICAL: native FreeScout settings handler
 
@@ -123,27 +125,68 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.5.2
+├── version.txt                          1.6.0
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
 │   ├── routes.php                       GET /teams-sso-handoff + admin license routes
 │   └── Controllers/
-│       ├── TeamsSsoController.php       handoff() — verifies token, Auth::login()
+│       ├── TeamsSsoController.php       handoff() — verifies token, (auto-creates user,) Auth::login()
 │       └── MSTeamsFSController.php      License management admin actions
 ├── Models/MSTeamsFSLicense.php
 ├── Services/LicenseService.php
+├── Services/UserProvisioner.php         Auto-create users on first Teams sign-in (1.6.0)
 ├── Providers/MSTeamsFSServiceProvider.php
 └── Resources/views/
     ├── handoff-error.blade.php          Shown on invalid/expired tokens
     └── settings/
-        ├── msteamsfs.blade.php          Backend Secret + Allowed Domains form
+        ├── msteamsfs.blade.php          Backend Secret, Allowed Domains, Create Users + default mailboxes
         └── partials/license.blade.php   License activation panel
 ```
 
 ---
 
 ## Changelog
+
+### 1.6.0 (2026-09-30) — Auto-create users on first Teams sign-in (board card #247)
+
+**New, off by default:** "Create Users" (Settings → MSTeams FS). When switched on
+AND Allowed Domains is filled in, a person from the licensed tenant with an allowed
+email domain and no FreeScout account yet gets one on their first Teams sign-in,
+instead of "Access denied. No FreeScout account found".
+
+- The user is created only after every existing check passed (HMAC, expiry, allowed
+  domains) AND the single-use hub check (consume-handoff). Identity pinning (1.5.6)
+  links the Microsoft oid immediately.
+- Role always User; FreeScout's dummy password (sign-in via Teams / Microsoft;
+  the user can still set a password later); invite_state activated; the name comes
+  from the hub's new optional `name` field in the handoff payload (fallback: the
+  email local part).
+- Access to the mailboxes ticked under "New users get access to", exactly as
+  FreeScout's own New User form does it (mailboxes()->sync + syncPersonalFolders);
+  default notification subscriptions via FreeScout's UserObserver.
+- Admins are notified with FreeScout's built-in alert mail (all active admins +
+  "Alert recipients"), including a link to the new user's profile.
+- Runs in a DB transaction with lockForUpdate: a concurrent first sign-in reuses
+  the same user instead of failing on the unique email.
+- Why Allowed Domains is required: a Microsoft tenant can contain guest accounts
+  from other domains; those must never get a FreeScout account automatically.
+- Settings screen: an always-visible "User Creation" status line (Off / Not active /
+  Active with domains + mailboxes). Added after the first live test, where ticking
+  mailboxes + domains without the switch silently left it off.
+
+**Security fix:** a Teams sign-in is now refused for FreeScout users that are
+disabled or deleted (status != active). Previously this wasn't checked, so a
+disabled user whose email matched could still sign in via Teams. Such users are
+also never re-created automatically.
+
+Requires hub: the optional `name` field (cfs-backend ed9fc0a / cfs-acc d5475e7).
+Older hubs still work; the name then falls back to the email local part.
+
+Verified live on support.stackpros.io: liliyom@stackpros.io was auto-created as
+"Liliyom Karim" with the 4 configured mailboxes, oid linked, and alert mail sent to
+all 4 admins; existing users' sign-in unaffected.
+
 
 ### 1.5.9 (2026-09-24) — Removed the hardcoded product-name comparison entirely
 

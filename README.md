@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.6.0
+**Version:** 1.6.1
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -125,7 +125,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.6.0
+├── version.txt                          1.6.1
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -147,6 +147,20 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.6.1 (2026-09-30) — Clear "no seats" message; seat is taken only for people who get in (board card #248)
+
+The ManagedFreeScout hub now reserves the invAIse license seat at the very last step
+(consume-handoff), i.e. only for someone this module actually logs in or creates. Before,
+the seat was reserved when Teams first signed in, so a colleague that FreeScout then
+refused (no account, domain not allowed, disabled user) kept a paid seat for nothing.
+
+- When the license is full, the hub now answers consume-handoff with 403
+  `no_seats_available`; this module shows "No more license seats are available…"
+  instead of the misleading "This sign-in link has already been used or has expired".
+- Returning users (already holding a seat) are never blocked; invAIse outages still let
+  people in (fail open), exactly as before.
+- Requires the current hub (cfs-backend 4ad03b1+). With an older hub nothing changes.
 
 ### 1.6.0 (2026-09-30) — Auto-create users on first Teams sign-in (board card #247)
 

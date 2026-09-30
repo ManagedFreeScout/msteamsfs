@@ -164,6 +164,12 @@ class TeamsSsoController extends Controller
                 ])
             );
             $consumeBody = json_decode((string) $consumeResponse->getBody(), true);
+            // Card #248 (1.6.1): the hub now occupies the license seat HERE (only for people this
+            // module is about to log in), so a full license is reported by consume-handoff.
+            if ($consumeResponse->getStatusCode() === 403 && ($consumeBody['error'] ?? '') === 'no_seats_available') {
+                \Log::warning('MSTeamsFS: Teams sign-in refused, no license seats available — email=' . $email);
+                return $this->errorResponse('No more license seats are available. Ask your administrator to free up a seat or buy an additional one, then reload the Teams tab.', 403);
+            }
             if ($consumeResponse->getStatusCode() !== 200 || empty($consumeBody['consumed'])) {
                 \Log::warning('MSTeamsFS: handoff token rejected by hub (already used, expired, or unknown) — possible replay, email=' . $email);
                 return $this->errorResponse('This sign-in link has already been used or has expired. Please reload the Teams tab to sign in again.', 401);

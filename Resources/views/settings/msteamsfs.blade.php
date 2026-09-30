@@ -48,7 +48,21 @@
                         $mstfsAutoCreate  = !empty($settings['msteamsfs.auto_create_users']);
                         $mstfsDomainsSet  = trim($settings['msteamsfs.allowed_domains'] ?? '') !== '';
                         $mstfsMailboxIds  = $settings['msteamsfs.auto_create_mailboxes'] ?? [];
+                        $mstfsMailboxNames = \App\Mailbox::whereIn('id', $mstfsMailboxIds)->orderBy('name')->pluck('name')->all();
                     @endphp
+                    {{-- Always-visible status (card #247): ticking mailboxes or filling in domains alone does not switch it on --}}
+                    <div class="form-group">
+                        <label class="col-sm-2 control-label">{{ __('User Creation') }}</label>
+                        <div class="col-sm-6">
+                            @if (!$mstfsAutoCreate)
+                                <div class="alert alert-danger margin-bottom-0"><strong>{{ __('Off') }}</strong> &mdash; {{ __('tick "Create Users" below and save to switch it on. Until then, people without a FreeScout account get "Access denied".') }}</div>
+                            @elseif (!$mstfsDomainsSet)
+                                <div class="alert alert-warning margin-bottom-0"><strong>{{ __('Not active') }}</strong> &mdash; {{ __('fill in Allowed Domains above. Automatic user creation only works for an explicit list of email domains, so guest accounts in your Microsoft tenant never get a FreeScout account.') }}</div>
+                            @else
+                                <div class="alert alert-success margin-bottom-0"><strong>{{ __('Active') }}</strong> &mdash; {{ __('new users from :domains get an account on their first Teams sign-in, with access to: :mailboxes', ['domains' => $settings['msteamsfs.allowed_domains'], 'mailboxes' => $mstfsMailboxNames ? implode(', ', $mstfsMailboxNames) : __('no mailboxes (assign them in the user profile)')]) }}</div>
+                            @endif
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label class="col-sm-2 control-label">{{ __('Create Users') }}</label>
                         <div class="col-sm-6">
@@ -58,9 +72,6 @@
                                     {{ __('Automatically create a FreeScout user on their first Teams sign-in') }}
                                 </label>
                             </div>
-                            @if ($mstfsAutoCreate && !$mstfsDomainsSet)
-                                <div class="alert alert-warning margin-top-10">{{ __('Not active: fill in Allowed Domains above. Automatic user creation only works for an explicit list of email domains, so guest accounts in your Microsoft tenant never get a FreeScout account.') }}</div>
-                            @endif
                             <p class="form-help">{{ __('Off by default. New users always get the role User (never Administrator) and access to the mailboxes ticked below. Administrators receive an email for every user created this way. Disabled or deleted users are never re-created.') }}</p>
                         </div>
                     </div>

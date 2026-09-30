@@ -58,6 +58,10 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             }
             $settings['msteamsfs.backend_secret']  = (string)(\Option::get('msteamsfs.backend_secret') ?? '');
             $settings['msteamsfs.allowed_domains']  = (string)(\Option::get('msteamsfs.allowed_domains') ?? '');
+            // Auto-create users on first Teams sign-in (card #247, 1.6.0)
+            $settings['msteamsfs.auto_create_users']     = (bool) \Option::get('msteamsfs.auto_create_users');
+            $mailboxIds = \Option::get('msteamsfs.auto_create_mailboxes');
+            $settings['msteamsfs.auto_create_mailboxes'] = is_array($mailboxIds) ? array_map('intval', $mailboxIds) : [];
             $settings['license_status']             = app(LicenseService::class)->getLicenseStatus();
             return $settings;
         }, 20, 2);

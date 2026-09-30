@@ -99,11 +99,28 @@ class TeamsSsoController extends Controller
 
         // Look up FreeScout user by email
         $user = \App\User::where('email', $email)->first();
+
+        // A user an admin disabled or deleted must never get in via Teams -- and is never
+        // re-created automatically either (card #247). Previously this was not checked.
+        if ($user && !$user->isActive()) {
+            \Log::warning("MSTeamsFS: Teams sign-in refused for inactive FreeScout user {$user->id} ({$email}), status={$user->status}");
+            return $this->errorResponse('Access denied. This FreeScout account is disabled. Please contact your administrator.', 403);
+        }
+
+        // No user yet: either refuse (default) or create it after all other checks
+        // below have passed, including the single-use hub check (card #247, 1.6.0).
+        $createUser = false;
         if (!$user) {
-            return $this->errorResponse(
-                'Access denied. No FreeScout account found for ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '.',
-                403
-            );
+            if (!\Modules\MSTeamsFS\Services\UserProvisioner::isEnabled()) {
+                return $this->errorResponse(
+                    'Access denied. No FreeScout account found for ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '.',
+                    403
+                );
+            }
+            if (\App\User::mailboxEmailExists($email)) {
+                return $this->errorResponse('Access denied. This email address is used by a mailbox and cannot be a user.', 403);
+            }
+            $createUser = true;
         }
 
         // Identity pinning (card #232, F8). Without this, sign-in is ultimately
@@ -116,7 +133,7 @@ class TeamsSsoController extends Controller
         // forward. Skipped entirely when this token has no oid (an
         // already-accepted "not fatal" gap from the original tid/oid rollout,
         // 2026-07-15) -- pinning can't be checked or established without one.
-        if ($oid) {
+        if ($oid && $user) {
             $existingLink = \Modules\MSTeamsFS\Entities\TeamsUserLink::where('user_id', $user->id)->first();
             if ($existingLink && $existingLink->oid && $existingLink->oid !== $oid) {
                 \Log::warning("MSTeamsFS: identity mismatch — FreeScout user {$user->id} ({$email}) previously signed in as oid={$existingLink->oid}, now presenting oid={$oid}. Rejecting.");
@@ -159,6 +176,16 @@ class TeamsSsoController extends Controller
             // sign-in is unavailable until it's back, same as any other outage.
             \Log::error('MSTeamsFS: consume-handoff request failed — ' . $e->getMessage());
             return $this->errorResponse('Could not verify sign-in with the ManagedFreeScout backend. Please try again in a moment.', 503);
+        }
+
+        // Auto-create the missing user now that the token is verified AND consumed (card #247).
+        if ($createUser) {
+            try {
+                $user = \Modules\MSTeamsFS\Services\UserProvisioner::create($email, $payload['name'] ?? null);
+            } catch (\Exception $e) {
+                \Log::error('MSTeamsFS: auto-creating FreeScout user failed for ' . $email . ' — ' . $e->getMessage());
+                return $this->errorResponse('Your FreeScout account could not be created automatically. Please contact your administrator.', 500);
+            }
         }
 
         // Capture the AAD identity for this login so conversation-event notifications

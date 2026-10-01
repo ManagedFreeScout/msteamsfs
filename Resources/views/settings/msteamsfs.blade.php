@@ -91,6 +91,18 @@
                         </div>
                     </div>
 
+                    {{-- Extra sites allowed to show FreeScout in a frame (card #249, 1.6.2) --}}
+                    <div class="form-group">
+                        <label class="col-sm-2 control-label">{{ __('Additional allowed embedders') }}</label>
+                        <div class="col-sm-6">
+                            <textarea class="form-control input-sized-lg"
+                                      name="settings[msteamsfs.extra_frame_ancestors]"
+                                      rows="3"
+                                      placeholder="https://helpcenter.example.com">{{ $settings['msteamsfs.extra_frame_ancestors'] ?? '' }}</textarea>
+                            <p class="form-help">{{ __('Websites, besides Microsoft Teams, that may show FreeScout inside a frame. One per line, e.g. https://helpcenter.example.com or https://*.example.com. MSTeamsFS writes these into the Content-Security-Policy block it manages in .htaccess, so do not edit that block by hand.') }}</p>
+                        </div>
+                    </div>
+
                     <div class="form-group margin-top-0 margin-bottom-0">
                         <div class="col-sm-6 col-sm-offset-2">
                             <button type="submit" class="btn btn-primary" name="action" value="msteamsfs_save">

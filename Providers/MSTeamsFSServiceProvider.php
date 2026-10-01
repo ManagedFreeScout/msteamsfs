@@ -62,6 +62,8 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             $settings['msteamsfs.auto_create_users']     = (bool) \Option::get('msteamsfs.auto_create_users');
             $mailboxIds = \Option::get('msteamsfs.auto_create_mailboxes');
             $settings['msteamsfs.auto_create_mailboxes'] = is_array($mailboxIds) ? array_map('intval', $mailboxIds) : [];
+            // Extra sites allowed to show FreeScout in a frame (card #249, 1.6.2)
+            $settings['msteamsfs.extra_frame_ancestors'] = (string)(\Option::get('msteamsfs.extra_frame_ancestors') ?? '');
             $settings['license_status']             = app(LicenseService::class)->getLicenseStatus();
             return $settings;
         }, 20, 2);
@@ -124,33 +126,46 @@ class MSTeamsFSServiceProvider extends ServiceProvider
 
     public function hooks()
     {
-        // Ensure the CSP .htaccess line is present (card #232, F10). Previously
-        // only ran after a FreeScout core update, so a FRESH install had no
-        // path to get it until the next core update happened -- new customers
-        // could see the Teams tab blocked from framing FreeScout at all until
-        // then. updateHtaccessFile() is idempotent (checks for the exact line,
-        // no-ops if present) and this runs on every boot, so it self-heals a
-        // fresh install immediately without waiting on a separate hook.
-        $this->updateHtaccessFile();
+        // Keep the managed CSP block in .htaccess in sync (card #232 F10, #249).
+        // A fresh install has no other path to get it, so this still runs from
+        // boot(), but behind a cache gate: the file is only checked when the
+        // wanted block changed or the last check is over a day old.
+        $this->maybeUpdateHtaccessFile();
 
-        // Kept in addition to the above: cheap, unconditional call already
-        // covers this case too, but a core update sometimes rewrites .htaccess
-        // wholesale (see the class doc comment on updateHtaccessFile) -- this
-        // hook re-checks (and re-backs-up if needed) right when that happens,
-        // rather than waiting for the next request's boot() to notice.
+        // A core update can reset .htaccess to FreeScout's default; put the
+        // block back right away instead of waiting for the daily check.
         \Eventy::addAction('command.after_app_update', function () {
             $this->updateHtaccessFile();
         });
 
+        // Normalise "Additional allowed embedders" before it is stored (card #249).
+        \Eventy::addFilter('settings.before_save', function ($request, $section, $settings) {
+            if ($section !== 'msteamsfs' || !is_array($request->settings)) {
+                return $request;
+            }
+            $values = $request->settings;
+            if (array_key_exists('msteamsfs.extra_frame_ancestors', $values)) {
+                list($valid, $invalid) = self::parseFrameAncestors((string) $values['msteamsfs.extra_frame_ancestors']);
+                $values['msteamsfs.extra_frame_ancestors'] = implode("\n", $valid);
+                $request->merge(['settings' => $values]);
+                if ($invalid) {
+                    $request->session()->flash('flash_error_floating', __('Ignored invalid embedders (use https://host or https://*.host): :list', ['list' => implode(', ', $invalid)]));
+                }
+            }
+            return $request;
+        }, 20, 3);
+
+        // Apply the saved embedders to .htaccess immediately.
+        \Eventy::addFilter('settings.after_save', function ($response, $request, $section, $settings) {
+            if ($section === 'msteamsfs' && !$this->updateHtaccessFile()) {
+                $request->session()->flash('flash_error_floating', __('Could not update .htaccess (not writable). Allowed embedders are not active yet.'));
+            }
+            return $response;
+        }, 20, 4);
+
         // FreeScout 1.8.219+ native CSP frame-ancestors filter
         \Eventy::addFilter('app.csp_frame_ancestors', function ($ancestors) {
-            $extra = [
-                'https://teams.microsoft.com',
-                'https://*.teams.microsoft.com',
-                'https://*.skype.com',
-                'https://*.cloud.microsoft',
-            ];
-            return array_unique(array_merge((array) $ancestors, $extra));
+            return array_values(array_unique(array_merge((array) $ancestors, self::frameAncestors())));
         });
 
         // Allow TeamsJS v2 SDK from Microsoft CDN
@@ -313,27 +328,134 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         $kernel->prependMiddleware(\Modules\MSTeamsFS\Http\Middleware\InjectTeams404ReloadScript::class);
     }
 
+    // Sites that may always show FreeScout in a frame: Microsoft Teams in all its hosts.
+    const TEAMS_FRAME_ANCESTORS = [
+        'https://teams.microsoft.com',
+        'https://*.teams.microsoft.com',
+        'https://*.skype.com',
+        'https://*.cloud.microsoft',
+    ];
+
+    const HTACCESS_BEGIN = '# BEGIN MSTeamsFS';
+    const HTACCESS_END   = '# END MSTeamsFS';
+
+    /**
+     * Split admin input (commas, spaces or new lines) into valid CSP origins
+     * and rejected entries. A bare host gets https:// in front; only https
+     * origins are accepted, optionally with a leading "*." wildcard and a port.
+     * The strict pattern also keeps quotes and new lines out of .htaccess.
+     */
+    public static function parseFrameAncestors($raw)
+    {
+        $valid   = [];
+        $invalid = [];
+        foreach (preg_split('/[\s,;]+/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY) as $entry) {
+            $origin = strtolower(rtrim($entry, '/'));
+            if (strpos($origin, '://') === false) {
+                $origin = 'https://' . $origin;
+            }
+            if (preg_match('#^https://(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(:\d{1,5})?$#', $origin)) {
+                if (!in_array($origin, self::TEAMS_FRAME_ANCESTORS, true)) {
+                    $valid[] = $origin;
+                }
+            } else {
+                $invalid[] = $entry;
+            }
+        }
+        return [array_values(array_unique($valid)), $invalid];
+    }
+
+    // Teams hosts plus the admin's "Additional allowed embedders". Read without
+    // Option's per-process cache: Option::set() does not refresh it, and this
+    // runs right after a settings save or the one-time carry-over below.
+    public static function frameAncestors()
+    {
+        list($extra) = self::parseFrameAncestors((string) \Option::get('msteamsfs.extra_frame_ancestors', '', true, false));
+        return array_merge(self::TEAMS_FRAME_ANCESTORS, $extra);
+    }
+
+    protected static function htaccessBlock()
+    {
+        return self::HTACCESS_BEGIN . "\n"
+            . "# Managed by the MSTeamsFS module: manual changes here are overwritten.\n"
+            . "# Add sites under Settings > MSTeams FS > Additional allowed embedders.\n"
+            . "<IfModule mod_headers.c>\n"
+            . "    Header always set Content-Security-Policy \"frame-ancestors 'self' " . implode(' ', self::frameAncestors()) . ";\"\n"
+            . "</IfModule>\n"
+            . self::HTACCESS_END;
+    }
+
+    /**
+     * Run updateHtaccessFile() only when the wanted block changed or the last
+     * check is more than a day old, so a normal page view costs one cache read.
+     */
+    protected function maybeUpdateHtaccessFile()
+    {
+        try {
+            $cacheKey = 'msteamsfs.htaccess_synced';
+            if (\Cache::get($cacheKey) === sha1(self::htaccessBlock())) {
+                return;
+            }
+            $this->updateHtaccessFile();
+            \Cache::put($cacheKey, sha1(self::htaccessBlock()), 60 * 24);
+        } catch (\Throwable $e) {
+            \Log::error('MSTeamsFS: .htaccess check failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Write the CSP frame-ancestors header into .htaccess as one marked block
+     * that is replaced in place (card #249). Up to 1.6.1 the module appended a
+     * new unmarked block whenever its exact line was missing, so every manual
+     * edit got a fresh block after it that silently overrode the edit. Those
+     * old blocks are removed here; hosts that were added to them by hand are
+     * carried over into the setting once, so they stay allowed.
+     *
+     * Returns false only when .htaccess exists but cannot be written.
+     */
     protected function updateHtaccessFile()
     {
         $htaccessPath = base_path('.htaccess');
         if (!file_exists($htaccessPath)) {
-            return;
+            return true;
         }
 
-        $currentContent = file_get_contents($htaccessPath);
-        $cspLine = 'Header always set Content-Security-Policy "frame-ancestors \'self\' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.cloud.microsoft;"';
-
-        if (strpos($currentContent, $cspLine) !== false) {
-            return;
+        $current = file_get_contents($htaccessPath);
+        if ($current === false) {
+            return false;
         }
 
-        $timestamp  = date('Y-m-d_H-i-s');
-        $backupPath = base_path(".htaccess.{$timestamp}");
-        copy($htaccessPath, $backupPath);
+        // Old unmarked blocks written by 1.6.1 and earlier (or hand-edited copies).
+        $legacyPattern = '#\n*<IfModule mod_headers\.c>\s*Header always set Content-Security-Policy "frame-ancestors ([^"\n]*teams\.microsoft\.com[^"\n]*)"\s*</IfModule>[ \t]*#';
+        if (preg_match_all($legacyPattern, $current, $matches) && \Option::get('msteamsfs.extra_frame_ancestors', null, true, false) === null) {
+            $hosts = preg_replace("#'self'|;#", ' ', implode(' ', $matches[1]));
+            list($carried) = self::parseFrameAncestors($hosts);
+            \Option::set('msteamsfs.extra_frame_ancestors', implode("\n", $carried));
+            if ($carried) {
+                \Log::info('MSTeamsFS: carried hand-added embedders over from .htaccess: ' . implode(', ', $carried));
+            }
+        }
 
-        $newContent = "\n\n<IfModule mod_headers.c>\n    {$cspLine}\n</IfModule>\n";
-        file_put_contents($htaccessPath, $newContent, FILE_APPEND);
+        $content = preg_replace($legacyPattern, '', $current);
+        $content = preg_replace('#\n*' . preg_quote(self::HTACCESS_BEGIN, '#') . '.*?' . preg_quote(self::HTACCESS_END, '#') . '[ \t]*#s', '', $content);
+        $content = rtrim($content) . "\n\n" . self::htaccessBlock() . "\n";
 
-        \Log::info("MSTeamsFS: Updated .htaccess with CSP headers. Backup at {$backupPath}");
+        if ($content === $current) {
+            return true;
+        }
+        if (!is_writable($htaccessPath)) {
+            \Log::error('MSTeamsFS: .htaccess is not writable, CSP frame-ancestors not updated');
+            return false;
+        }
+
+        // One rolling backup instead of a new timestamped copy per change.
+        $backupPath = base_path('.htaccess.msteamsfs-backup');
+        @copy($htaccessPath, $backupPath);
+        if (file_put_contents($htaccessPath, $content, LOCK_EX) === false) {
+            return false;
+        }
+
+        \Log::info("MSTeamsFS: Updated the CSP block in .htaccess. Previous version at {$backupPath}");
+        return true;
     }
 }

@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.6.1
+**Version:** 1.6.2
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -113,9 +113,15 @@ License management is handled by `LicenseService.php` and the license panel in t
 The ServiceProvider adds `frame-ancestors` entries via:
 
 1. `app.csp_frame_ancestors` filter (FreeScout 1.8.219+)
-2. `command.after_app_update` hook — patches `.htaccess` after auto-updates
+2. One marked block in `.htaccess` (`# BEGIN MSTeamsFS` … `# END MSTeamsFS`), replaced in
+   place by `updateHtaccessFile()` (1.6.2+). It is checked on boot behind a cache gate (only
+   when the wanted block changed or once a day), right after saving the settings, and after
+   a FreeScout core update (`command.after_app_update`). Hand edits inside the block are
+   overwritten; one rolling backup is kept as `.htaccess.msteamsfs-backup`.
 
-Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*.cloud.microsoft`
+Domains always added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*.cloud.microsoft`.
+Extra sites come from the setting **Additional allowed embedders** (`msteamsfs.extra_frame_ancestors`,
+https origins only, `*.` wildcard and port allowed).
 
 ---
 
@@ -125,7 +131,7 @@ Domains added: `teams.microsoft.com`, `*.teams.microsoft.com`, `*.skype.com`, `*
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.6.1
+├── version.txt                          1.6.2
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -140,13 +146,31 @@ MSTeamsFS/
 └── Resources/views/
     ├── handoff-error.blade.php          Shown on invalid/expired tokens
     └── settings/
-        ├── msteamsfs.blade.php          Backend Secret, Allowed Domains, Create Users + default mailboxes
+        ├── msteamsfs.blade.php          Backend Secret, Allowed Domains, Create Users + default mailboxes, Additional allowed embedders
         └── partials/license.blade.php   License activation panel
 ```
 
 ---
 
 ## Changelog
+
+### 1.6.2 (2026-10-01) — One managed `.htaccess` block; "Additional allowed embedders" (board card #249)
+
+Up to 1.6.1 the module checked `.htaccess` on every request for its exact CSP line and, when
+the line was missing, appended a new block. Because the last `Header always set` wins, every
+hand edit (for example allowing an extra site to embed FreeScout) was silently cancelled out
+by the next request, and each attempt left a timestamped `.htaccess.<date>` backup behind.
+
+- The CSP header now lives in one marked block (`# BEGIN MSTeamsFS` … `# END MSTeamsFS`)
+  that is replaced in place, never appended.
+- New setting **Additional allowed embedders** (Settings → MSTeams FS): extra https origins
+  that may show FreeScout in a frame. Invalid entries are refused with a message.
+- On the first run the old unmarked blocks are removed. Sites someone had added to them by
+  hand are carried over into the new setting once, so they keep working (and now actually
+  take effect).
+- The file is only checked when the setting changes, after a core update, or once a day,
+  instead of on every request. One rolling backup (`.htaccess.msteamsfs-backup`) replaces
+  the timestamped copies; existing timestamped backups are left alone.
 
 ### 1.6.1 (2026-09-30) — Clear "no seats" message; seat is taken only for people who get in (board card #248)
 

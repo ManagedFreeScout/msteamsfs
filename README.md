@@ -1,7 +1,7 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.6.2
+**Version:** 1.6.3
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
 
@@ -131,7 +131,7 @@ https origins only, `*.` wildcard and port allowed).
 MSTeamsFS/
 ├── module.json                          Module manifest
 ├── composer.json                        No external deps (no JWT library needed)
-├── version.txt                          1.6.2
+├── version.txt                          1.6.3
 ├── start.php                            Loads routes
 ├── Config/config.php                    License config only
 ├── Http/
@@ -153,6 +153,22 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.6.3 (2026-10-01) — Links to other sites always open in the browser from Teams
+
+FreeScout core commit 9921987a ("Remove target=_blank from non-external links", issue #5086,
+on master after 1.8.243) only marks EXTERNAL links in conversations with `target="_blank"`
+server-side, and no longer forces `target="_blank"` on every conversation link in JS
+(`processLinks()` disabled). This module only intercepted `target="_blank"` links, so inside
+the Teams tab a link to another site without it (e.g. an email link with `target="_self"`,
+or FreeScout's own "Recommendations" wiki link) would load inside the Teams iframe and
+show "refused to connect".
+
+- msteamsfs.js now also opens every http(s) link to another host via Teams `app.openLink()`
+  (browser), whatever its target. Same-site links keep navigating inside the Teams tab;
+  mailto: links and `[data-trigger="modal"]` links are untouched. Only active inside the
+  Teams iframe, as before.
+- Works with both the current FreeScout (1.8.243) and the coming release.
 
 ### 1.6.2 (2026-10-01) — One managed `.htaccess` block; "Additional allowed embedders" (board card #249)
 

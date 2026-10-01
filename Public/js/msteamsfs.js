@@ -34,7 +34,7 @@ var _msTeamsOriginalOpen = window.open;
 
     function setupLinkInterception() {
         document.addEventListener('click', function(e) {
-            const link = e.target.closest('a[target="_blank"]');
+            const link = e.target.closest('a[href]');
             if (!link || !link.href) return;
             // FreeScout's own core JS binds [data-trigger="modal"] links to its
             // native AJAX-modal-load flow in the bubble phase, after this
@@ -45,8 +45,24 @@ var _msTeamsOriginalOpen = window.open;
             // gets bound and Save falls back to a native POST against a
             // GET-only route (405). Leave native modal triggers untouched.
             if (link.closest('[data-trigger="modal"]')) return;
-            e.preventDefault();
-            handleLink(link.href);
+            if (link.getAttribute('target') === '_blank') {
+                e.preventDefault();
+                handleLink(link.href);
+                return;
+            }
+            // Links to another site WITHOUT target="_blank" (v1.6.3). FreeScout
+            // core 9921987a (after 1.8.243) only marks external thread links
+            // with target="_blank" server-side and no longer forces it on every
+            // thread link in JS (processLinks() disabled), so e.g. an email link
+            // with target="_self" or FreeScout's own wiki link would load inside
+            // the Teams iframe and show "refused to connect". Open those via
+            // handleLink() too; same-site links keep navigating in the iframe.
+            let url;
+            try { url = new URL(link.href, window.location.href); } catch (err) { return; }
+            if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== window.location.hostname) {
+                e.preventDefault();
+                handleLink(url.href);
+            }
         }, true);
 
         window.open = function(url, target, features) {

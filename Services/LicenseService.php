@@ -199,6 +199,13 @@ class LicenseService
 
         $license = MSTeamsFSLicense::firstOrCreate([], ['license_key' => $licenseKey]);
         $license->update($updateData);
+        // update() saves nothing (and so leaves updated_at alone) when invAIse
+        // returns exactly the same answer as last time. updated_at is what the
+        // 14-day staleness backstop (MSTeamsFSLicense::MAX_STALE_DAYS) reads as
+        // "last heard back from invAIse", so stamp it on every real answer.
+        // Without this an unchanged, healthy license locked sign-in out 14 days
+        // after its last change (card #258, 2026-10-06).
+        $license->touch();
     }
 
     protected function activateLicenseViaInvaise($licenseKey, $domain = null)

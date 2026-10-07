@@ -49,52 +49,64 @@ class LicenseService
     }
 
     /**
-     * Performs the actual signed HTTP call to invAIse's license API. Uses
-     * GuzzleHttp\Client directly (not the Http:: facade) — same pattern
-     * already established in MSTeamsFSServiceProvider's Teams notify call,
-     * relying on FreeScout core's bundled Guzzle rather than adding a
-     * module-level dependency.
+     * License calls go through the ManagedFreeScout hub (card #268, S1): this
+     * install holds no invAIse credentials. The request is signed with the
+     * Backend Secret, like Teams notifications; the hub only acts on the license
+     * linked to this install and returns invAIse's own answer unchanged.
      *
-     * Returns ['status' => int, 'data' => array] on a completed HTTP
-     * round-trip (regardless of 2xx/4xx — invAIse returns a normal JSON body
-     * even for 404 "not_found"), or null if the request could not be made at
-     * all (credentials missing, network/connection failure).
+     * Returns ['status' => int, 'data' => array], or null when no license answer
+     * came back (hub or invAIse unreachable, or the hub itself refused, e.g. a
+     * wrong Backend Secret). Callers then keep the last known state instead of
+     * storing "invalid".
      */
     protected function invaiseRequest(string $endpoint, array $body): ?array
     {
-        $baseUrl   = rtrim(config('msteamsfs.invaise_base_url', 'https://acc.invaise.com'), '/');
-        $apiKey    = config('msteamsfs.invaise_api_key', '');
-        $apiSecret = config('msteamsfs.invaise_api_secret', '');
-
-        if (empty($apiKey) || empty($apiSecret)) {
-            \Log::error(__('invAIse API credentials not configured (msteamsfs.invaise_api_key / msteamsfs.invaise_api_secret) — cannot reach license server.'));
+        $action = basename($endpoint); // /api/v1/license/validate -> validate
+        $hubUrl = rtrim((string) config('msteamsfs.backend_url', ''), '/');
+        $secret = (string) \Option::get('msteamsfs.backend_secret', '');
+        if ($hubUrl === '' || $secret === '') {
+            \Log::error('MSTeamsFS: hub URL or Backend Secret not configured — cannot check the license.');
             return null;
         }
+
+        $payload = json_encode([
+            'license_key'   => (string) ($body['license_key'] ?? ''),
+            'freescout_url' => rtrim((string) config('app.url'), '/'),
+            'ts'            => time(),
+        ]);
 
         try {
-            $client = new \GuzzleHttp\Client(['timeout' => 15]);
-            $response = $client->request('POST', $baseUrl . $endpoint, [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $apiKey . ':' . $apiSecret,
-                    'Content-Type'  => 'application/json',
-                    'Accept'        => 'application/json',
-                ],
-                'json'        => $body,
-                'http_errors' => false, // 404/4xx still carry a real JSON body from invAIse — decode it ourselves
-            ]);
-
+            $response = (new \GuzzleHttp\Client())->request(
+                'POST',
+                $hubUrl . '/teams/license/' . $action,
+                array_merge(\Helper::setGuzzleDefaultOptions(['timeout' => 15]), [
+                    'headers'     => [
+                        'Content-Type'          => 'application/json',
+                        'Accept'                => 'application/json',
+                        'X-MSTeamsFS-Signature' => hash_hmac('sha256', $payload, $secret),
+                    ],
+                    'body'        => $payload,
+                    'http_errors' => false,
+                ])
+            );
             $status = $response->getStatusCode();
             $data   = json_decode((string) $response->getBody(), true);
-            if (!is_array($data)) {
-                \Log::error(__('invAIse API returned a non-JSON response (status :status)', ['status' => $status]));
-                return null;
-            }
-
-            return ['status' => $status, 'data' => $data];
         } catch (\Exception $e) {
-            \Log::error(__('invAIse API request failed: ') . $e->getMessage());
+            \Log::error('MSTeamsFS: license request to the hub failed — ' . $e->getMessage());
             return null;
         }
+
+        // A license answer carries valid, success or status. A bare {error} is the
+        // hub itself refusing and must not be stored as "invalid license".
+        if (!is_array($data)
+            || !(array_key_exists('valid', $data) || array_key_exists('success', $data) || array_key_exists('status', $data))
+        ) {
+            \Log::error('MSTeamsFS: hub refused the license request (HTTP ' . $status . ', '
+                . (is_array($data) ? ($data['error'] ?? 'no details') : 'no JSON') . ')');
+            return null;
+        }
+
+        return ['status' => $status, 'data' => $data];
     }
 
     /**

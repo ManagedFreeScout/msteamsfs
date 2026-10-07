@@ -15,22 +15,10 @@ return [
     'product_id'         => env('MSTEAMSFS_PRODUCT_ID', 'TO_BE_ASSIGNED'),
     'software'           => 2,
 
-    // -- invAIse (current license provider) --
-    // Defaults to PROD (app.invaise.com), not ACC — flipped 2026-08-11. invAIse
-    // is genuinely live with real tenants and real invoices already flowing
-    // through it, and unlike the WordPress checkout connector (which has a real
-    // reason to default to ACC — it's an internal test surface), every MSTeamsFS
-    // install is a real customer with no sandbox tier to fall back to. A silent
-    // ACC default here would just 401 in production with no obvious cause —
-    // caught during card #99's live credential test.
-    'invaise_base_url'     => env('MSTEAMSFS_INVAISE_BASE_URL', 'https://app.invaise.com'),
-    // Real StackPros tenant credentials, generated 2026-08-10 via invAIse's
-    // Organisation page (card #99). Still must be set explicitly via .env on
-    // each real install — no hardcoded value here, this is a per-tenant secret,
-    // not shared infra like backend_url below. Until set, invaiseRequest() logs
-    // an error and every call fails closed (never silently "valid").
-    'invaise_api_key'      => env('MSTEAMSFS_INVAISE_API_KEY', ''),
-    'invaise_api_secret'   => env('MSTEAMSFS_INVAISE_API_SECRET', ''),
+    // -- invAIse (license provider) --
+    // Since 1.7.0 (card #268) license checks go through the hub below, signed
+    // with the Backend Secret; this install holds no invAIse credentials. Any
+    // MSTEAMSFS_INVAISE_* lines left in .env are ignored and can be removed.
     // ManagedFreeScout Teams SSO / notification hub — same backend the handoff
     // login flow talks to (see TEAMS_SSO.md). Same value for every customer install
     // (it is our hub, not a per-tenant credential) so it gets a hardcoded default,

@@ -8,12 +8,21 @@ var _msTeamsOriginalOpen = window.open;
     // Only run inside an iframe (Teams)
     if (window.self === window.top) return;
 
+    // FreeScout attachment downloads (/storage/attachment/...?id=..&token=..)
+    // are same-site, but FreeScout serves viewable types (PDF, images, text)
+    // inline under a sandboxing CSP, and inside the Teams iframe a PDF then
+    // shows nothing at all (card #260, v1.6.5). Open them in the browser like
+    // links to other sites; the URL carries its own token, so no login needed.
+    function isAttachmentUrl(linkUrl) {
+        return linkUrl.pathname.indexOf('/storage/attachment/') !== -1;
+    }
+
     function handleLink(url) {
         try {
             const linkUrl = new URL(url, window.location.href);
             const currentHost = window.location.hostname;
             // Same-domain links — navigate within iframe directly
-            if (linkUrl.hostname === currentHost) {
+            if (linkUrl.hostname === currentHost && !isAttachmentUrl(linkUrl)) {
                 window.location.href = linkUrl.href;
                 return;
             }
@@ -56,10 +65,12 @@ var _msTeamsOriginalOpen = window.open;
             // thread link in JS (processLinks() disabled), so e.g. an email link
             // with target="_self" or FreeScout's own wiki link would load inside
             // the Teams iframe and show "refused to connect". Open those via
-            // handleLink() too; same-site links keep navigating in the iframe.
+            // handleLink() too; same-site links keep navigating in the iframe,
+            // except attachments (v1.6.5, see isAttachmentUrl()).
             let url;
             try { url = new URL(link.href, window.location.href); } catch (err) { return; }
-            if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== window.location.hostname) {
+            if ((url.protocol === 'http:' || url.protocol === 'https:') &&
+                (url.hostname !== window.location.hostname || isAttachmentUrl(url))) {
                 e.preventDefault();
                 handleLink(url.href);
             }

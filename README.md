@@ -154,6 +154,16 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.6.5 (2026-10-07) — Attachments open in the browser from Teams (board card #260)
+
+Attachment links (`/storage/attachment/…?id=…&token=…`) are on FreeScout's own site, so up to
+1.6.4 they loaded inside the Teams tab. FreeScout serves viewable attachments (PDF, images,
+text) inline under a sandboxing CSP, and there a PDF showed nothing at all.
+
+- msteamsfs.js now opens attachment links via Teams `app.openLink()` (browser), like links to
+  other sites. The link carries its own access token, so no FreeScout login is needed there.
+- All other same-site links keep navigating inside the Teams tab.
+
 ### 1.6.3 (2026-10-01) — Links to other sites always open in the browser from Teams
 
 FreeScout core commit 9921987a ("Remove target=_blank from non-external links", issue #5086,

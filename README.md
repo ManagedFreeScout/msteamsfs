@@ -154,6 +154,23 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.6.6 (2026-10-07) — Attachments really open in the browser from Teams (board card #260)
+
+1.6.5 did not work in the real Teams tab. FreeScout pages there have no TeamsJS, so a link
+leaves the tab through `window.open()`, and Teams only sends links to OTHER sites to the
+browser: a `window.open()` of an attachment on FreeScout's own site still loaded inside the
+tab, where a PDF is blocked ("This page has been blocked by Microsoft Edge").
+
+- Attachment links now open `<hub>/teams/open-attachment#u=<attachment URL>` (hub =
+  `msteamsfs.backend_url`, passed to the JS in a `<meta name="msteamsfs-backend-url">` tag).
+  That is another site, so Teams opens it in the browser, and the hub page forwards to the
+  attachment. The attachment URL is in the `#` part, so its token never reaches the hub's
+  server; the hub only checks that the attachment's site is a registered install.
+- Links with a `download` attribute (the arrow next to an attachment) are left alone again, so
+  they download inside Teams as before 1.6.5.
+- Requires the hub route `/teams/open-attachment` (cfs-backend, card #260). Without the meta
+  tag, attachments behave as in 1.6.4.
+
 ### 1.6.5 (2026-10-07) — Attachments open in the browser from Teams (board card #260)
 
 Attachment links (`/storage/attachment/…?id=…&token=…`) are on FreeScout's own site, so up to

@@ -8,21 +8,36 @@ var _msTeamsOriginalOpen = window.open;
     // Only run inside an iframe (Teams)
     if (window.self === window.top) return;
 
-    // FreeScout attachment downloads (/storage/attachment/...?id=..&token=..)
-    // are same-site, but FreeScout serves viewable types (PDF, images, text)
-    // inline under a sandboxing CSP, and inside the Teams iframe a PDF then
-    // shows nothing at all (card #260, v1.6.5). Open them in the browser like
-    // links to other sites; the URL carries its own token, so no login needed.
+    // FreeScout attachments (/storage/attachment/...?id=..&token=..) are
+    // same-site, and inside the Teams tab a PDF is then blocked ("This page
+    // has been blocked by Microsoft Edge"). FreeScout pages have no TeamsJS,
+    // so links leave the tab via window.open(), and Teams only sends OTHER
+    // sites to the browser; a same-site window.open() stays in the tab.
+    // So open attachments through the hub (another site), which forwards the
+    // browser to the attachment (card #260, v1.6.6). The attachment URL goes
+    // in the #fragment, so its token never reaches the hub's server; the URL
+    // carries its own token, so no FreeScout login is needed in the browser.
     function isAttachmentUrl(linkUrl) {
         return linkUrl.pathname.indexOf('/storage/attachment/') !== -1;
     }
 
+    function hubAttachmentUrl(linkUrl) {
+        const meta = document.querySelector('meta[name="msteamsfs-backend-url"]');
+        const hub = meta && meta.getAttribute('content');
+        if (!hub) return null;
+        return hub.replace(/\/+$/, '') + '/teams/open-attachment#u=' + encodeURIComponent(linkUrl.href);
+    }
+
     function handleLink(url) {
         try {
-            const linkUrl = new URL(url, window.location.href);
+            let linkUrl = new URL(url, window.location.href);
             const currentHost = window.location.hostname;
+            if (linkUrl.hostname === currentHost && isAttachmentUrl(linkUrl)) {
+                const viaHub = hubAttachmentUrl(linkUrl);
+                if (viaHub) linkUrl = new URL(viaHub);
+            }
             // Same-domain links — navigate within iframe directly
-            if (linkUrl.hostname === currentHost && !isAttachmentUrl(linkUrl)) {
+            if (linkUrl.hostname === currentHost) {
                 window.location.href = linkUrl.href;
                 return;
             }
@@ -54,6 +69,10 @@ var _msTeamsOriginalOpen = window.open;
             // gets bound and Save falls back to a native POST against a
             // GET-only route (405). Leave native modal triggers untouched.
             if (link.closest('[data-trigger="modal"]')) return;
+            // Download links (e.g. the arrow next to an attachment) already
+            // work inside Teams: the file downloads. Leave them native (1.6.6;
+            // 1.6.5 caught them by their attachment URL).
+            if (link.hasAttribute('download')) return;
             if (link.getAttribute('target') === '_blank') {
                 e.preventDefault();
                 handleLink(link.href);
@@ -66,7 +85,7 @@ var _msTeamsOriginalOpen = window.open;
             // with target="_self" or FreeScout's own wiki link would load inside
             // the Teams iframe and show "refused to connect". Open those via
             // handleLink() too; same-site links keep navigating in the iframe,
-            // except attachments (v1.6.5, see isAttachmentUrl()).
+            // except attachments (v1.6.6, see hubAttachmentUrl()).
             let url;
             try { url = new URL(link.href, window.location.href); } catch (err) { return; }
             if ((url.protocol === 'http:' || url.protocol === 'https:') &&

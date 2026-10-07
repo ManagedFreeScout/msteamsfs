@@ -179,6 +179,16 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             return $scripts;
         }, 20, 1);
 
+        // Hub URL for msteamsfs.js: attachments clicked in the Teams tab open
+        // in the browser via <hub>/teams/open-attachment (card #260, v1.6.6).
+        // A meta tag rather than an inline script, so it needs no CSP nonce.
+        \Eventy::addAction('layout.head', function () {
+            $backendUrl = rtrim((string) config('msteamsfs.backend_url', ''), '/');
+            if ($backendUrl) {
+                echo '<meta name="msteamsfs-backend-url" content="'.e($backendUrl).'">';
+            }
+        }, 20, 0);
+
         // License re-validation, every 6 hours (card #232, F5 -- was weekly).
         // Deliberately NOT a live check at sign-in: the Teams resign-in flow
         // already re-runs on every tab switch (desktop/browser, confirmed

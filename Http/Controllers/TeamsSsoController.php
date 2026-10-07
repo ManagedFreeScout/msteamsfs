@@ -170,6 +170,12 @@ class TeamsSsoController extends Controller
                 \Log::warning('MSTeamsFS: Teams sign-in refused, no license seats available — email=' . $email);
                 return $this->errorResponse('No more license seats are available. Ask your administrator to free up a seat or buy an additional one, then reload the Teams tab.', 403);
             }
+            // Card #259: the hub refuses a tenant whose license invAIse reports inactive or
+            // unknown, or that has no license linked at all.
+            if ($consumeResponse->getStatusCode() === 403 && ($consumeBody['error'] ?? '') === 'license_inactive') {
+                \Log::warning('MSTeamsFS: Teams sign-in refused, license not active on the hub — email=' . $email);
+                return $this->errorResponse('Your organization\'s MSTeamsFS license is not active. Ask your administrator to renew it, then reload the Teams tab.', 403);
+            }
             if ($consumeResponse->getStatusCode() !== 200 || empty($consumeBody['consumed'])) {
                 \Log::warning('MSTeamsFS: handoff token rejected by hub (already used, expired, or unknown) — possible replay, email=' . $email);
                 return $this->errorResponse('This sign-in link has already been used or has expired. Please reload the Teams tab to sign in again.', 401);

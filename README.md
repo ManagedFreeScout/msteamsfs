@@ -7,12 +7,21 @@
 
 ---
 
-## Current state (1.7.1, 2026-10-08): read this first
+## Current state (1.8.0, 2026-10-08): read this first
 
 The rest of this file is a development log: each section describes the module as it was
 on its date. Where it disagrees with this summary, this summary wins. The install guide
 for customers is `README-install.md`.
 
+- **Self-service onboarding** (1.8.0, card #276): Activate License on an install without a
+  Backend Secret first calls the unsigned `POST /teams/install/register` (licence key + APP_URL,
+  https only); the hub activates the key in invAIse for that domain, claims it for this one
+  install and returns the Backend Secret, which the module stores (read back uncached:
+  `Option::set()` does not refresh `Option::$cache`). The "Microsoft 365 connection" panel
+  (`/admin/msteamsfs/connection`) shows the link status and gets a one-day connection code
+  (signed `/teams/install/{status,connect-code}`); the code is entered in the Teams tab, which
+  links the tenant (`/teams/connect`). The Backend Secret is never rendered; an empty field on
+  save keeps it (`settings.before_save`), a replacement must be 64 hex characters.
 - **Licence checks go through the ManagedFreeScout hub** (since 1.7.0): `invaiseRequest()`
   POSTs to `{backend_url}/teams/license/{activate,validate,deactivate}`, signed with the
   Backend Secret. The install holds **no invAIse credentials**; `MSTEAMSFS_INVAISE_*` in
@@ -178,6 +187,15 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.8.0 (2026-10-08) — Self-service onboarding (board card #276)
+
+A new customer only enters their licence key: Activate License registers the install with the
+hub and stores the Backend Secret it returns, and a "Microsoft 365 connection" panel gets a
+one-day code that links the customer's Microsoft 365 organisation from the Teams tab. No
+StackPros step is needed any more. The Backend Secret field now only shows "Set" with a Replace
+link; saving the form never clears it. Needs the hub with `/teams/install/*` (cfs-backend
+aae9f66, deployed 2026-10-08). Existing installs keep their secret and connection.
 
 ### 1.6.6 (2026-10-07) — Attachments really open in the browser from Teams (board card #260)
 

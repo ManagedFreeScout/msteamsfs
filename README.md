@@ -1,9 +1,34 @@
 # MSTeamsFS — ManagedFreeScout Teams SSO (FreeScout Module)
 
 **Module alias:** `msteamsfs`
-**Version:** 1.6.3
+**Version:** 1.7.1
 **Namespace:** `Modules\MSTeamsFS`
 **GitHub:** https://github.com/ManagedFreeScout/msteamsfs
+
+---
+
+## Current state (1.7.1, 2026-10-08): read this first
+
+The rest of this file is a development log: each section describes the module as it was
+on its date. Where it disagrees with this summary, this summary wins. The install guide
+for customers is `README-install.md`.
+
+- **Licence checks go through the ManagedFreeScout hub** (since 1.7.0): `invaiseRequest()`
+  POSTs to `{backend_url}/teams/license/{activate,validate,deactivate}`, signed with the
+  Backend Secret. The install holds **no invAIse credentials**; `MSTEAMSFS_INVAISE_*` in
+  `.env` is ignored. A bare `{error}` from the hub (wrong secret, stale clock) counts as
+  "no answer", so the last known state is kept. The hub limits keys to MSTeamsFS
+  (invAIse `activity_ids`).
+- **Sign-in refusals from the hub:** `no_seats_available` and `license_inactive` (1.6.8)
+  each get their own message.
+- **Licence table:** the module creates the shared `modules_licenses` table itself if it is
+  missing (1.6.7). A cached licence older than 14 days counts as invalid; every invAIse
+  answer resets that clock (1.6.4).
+- **Requires FreeScout 1.8.101+** (`requiredAppVersion`; the `csp.script_src` hook).
+  FreeScout core has no frame-ancestors filter: the module's `.htaccess` block is what
+  lets Teams embed the helpdesk. nginx installs must add that header themselves.
+- **Release zip** is built with `git archive`; `.gitattributes` keeps README.md and
+  SERVER.md out of it.
 
 ---
 
@@ -636,7 +661,7 @@ unchanged when invAIse includes them, and omitted entirely from this method's re
 value when absent — not built into any UI yet, per the original task's explicit
 sequencing (settings-page display is separate future work, once this is confirmed live).
 
-**New config keys** (`Config/config.php`, all via `.env`): `MSTEAMSFS_LICENSE_PROVIDER`,
+**(History: the MSTEAMSFS_INVAISE_* keys below were removed in 1.7.0; see Current state.)** **New config keys** (`Config/config.php`, all via `.env`): `MSTEAMSFS_LICENSE_PROVIDER`,
 `MSTEAMSFS_INVAISE_BASE_URL` (default `https://acc.invaise.com` — ACC first, per usual
 discipline), `MSTEAMSFS_INVAISE_API_KEY`, `MSTEAMSFS_INVAISE_API_SECRET`,
 `MSTEAMSFS_INVAISE_PRODUCT_NAME`.

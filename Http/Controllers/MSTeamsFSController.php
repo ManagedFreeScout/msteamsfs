@@ -84,6 +84,29 @@ class MSTeamsFSController extends Controller
         ]);
     }
 
+    /**
+     * Microsoft 365 connection panel (card #276): action=status shows whether the
+     * hub has linked this install's Microsoft 365 tenant, action=code gets a
+     * one-day connection code to enter in the Teams tab.
+     */
+    public function connection(Request $request)
+    {
+        if ((string) \Option::get('msteamsfs.backend_secret', '') === '') {
+            return response()->json(['status' => 'error', 'message' => __('Activate your license first.')]);
+        }
+        $action = $request->input('action') === 'code' ? 'code' : 'status';
+        $data = $this->getLicenseService()->hubConnection($action);
+        if ($data === null) {
+            return response()->json(['status' => 'error', 'message' => __('Could not reach the ManagedFreeScout hub. Please try again in a few minutes.')]);
+        }
+        return response()->json([
+            'status'           => 'success',
+            'tenant_connected' => !empty($data['tenant_connected']),
+            'code'             => $data['code'] ?? null,
+            'expires_at'       => $data['expires_at'] ?? null,
+        ]);
+    }
+
     public function handleModuleLicenseAction(Request $request)
     {
         $action = $request->input('action');

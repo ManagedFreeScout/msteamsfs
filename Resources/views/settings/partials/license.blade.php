@@ -49,7 +49,7 @@
                             <input type="text" class="form-control" name="license_key" id="license_key_input"
                                     value="{{ $settings['license_status']['license_key'] ?? '' }}"
                                     placeholder="{{ __('Enter your license key') }}">
-                            <div class="help-block">{{ __('Enter your license key to activate the module') }}</div>
+                            <div class="help-block">{{ __('Enter the license key from your ManagedFreeScout account and click Activate License. The first activation also registers this FreeScout with ManagedFreeScout.') }}</div>
                             <div class="help-block">By using this module you agree to our <a href="https://managedfreescout.com/license-terms" target="_blank">Software License Terms</a>.</div>
                         </div>
                     </div>

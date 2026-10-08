@@ -62,39 +62,14 @@ class LicenseService
     protected function invaiseRequest(string $endpoint, array $body): ?array
     {
         $action = basename($endpoint); // /api/v1/license/validate -> validate
-        $hubUrl = rtrim((string) config('msteamsfs.backend_url', ''), '/');
-        $secret = (string) \Option::get('msteamsfs.backend_secret', '');
-        if ($hubUrl === '' || $secret === '') {
-            \Log::error('MSTeamsFS: hub URL or Backend Secret not configured — cannot check the license.');
+        $result = $this->hubRequest('/teams/license/' . $action, [
+            'license_key' => (string) ($body['license_key'] ?? ''),
+        ], true);
+        if ($result === null) {
             return null;
         }
-
-        $payload = json_encode([
-            'license_key'   => (string) ($body['license_key'] ?? ''),
-            'freescout_url' => rtrim((string) config('app.url'), '/'),
-            'ts'            => time(),
-        ]);
-
-        try {
-            $response = (new \GuzzleHttp\Client())->request(
-                'POST',
-                $hubUrl . '/teams/license/' . $action,
-                array_merge(\Helper::setGuzzleDefaultOptions(['timeout' => 15]), [
-                    'headers'     => [
-                        'Content-Type'          => 'application/json',
-                        'Accept'                => 'application/json',
-                        'X-MSTeamsFS-Signature' => hash_hmac('sha256', $payload, $secret),
-                    ],
-                    'body'        => $payload,
-                    'http_errors' => false,
-                ])
-            );
-            $status = $response->getStatusCode();
-            $data   = json_decode((string) $response->getBody(), true);
-        } catch (\Exception $e) {
-            \Log::error('MSTeamsFS: license request to the hub failed — ' . $e->getMessage());
-            return null;
-        }
+        $status = $result['status'];
+        $data   = $result['data'];
 
         // A license answer carries valid, success or status. A bare {error} is the
         // hub itself refusing and must not be stored as "invalid license".
@@ -107,6 +82,120 @@ class LicenseService
         }
 
         return ['status' => $status, 'data' => $data];
+    }
+
+    /**
+     * POST to the ManagedFreeScout hub. $signed requests carry this install's
+     * Backend Secret as an HMAC of the exact body (same scheme as Teams
+     * notifications); only /teams/install/register goes unsigned, because it is
+     * what hands out the secret (card #276).
+     *
+     * Returns ['status' => int, 'data' => array|null], or null when the hub could
+     * not be reached or the Backend Secret is missing for a signed call.
+     */
+    protected function hubRequest(string $path, array $fields, bool $signed): ?array
+    {
+        $hubUrl = rtrim((string) config('msteamsfs.backend_url', ''), '/');
+        // Uncached: registerWithHub() may have just stored the secret in this same
+        // request, and Option::set() does not refresh Option's in-process cache.
+        $secret = (string) \Option::get('msteamsfs.backend_secret', '', true, false);
+        if ($hubUrl === '' || ($signed && $secret === '')) {
+            \Log::error('MSTeamsFS: hub URL or Backend Secret not configured — cannot call ' . $path);
+            return null;
+        }
+
+        $payload = json_encode(array_merge($fields, [
+            'freescout_url' => rtrim((string) config('app.url'), '/'),
+            'ts'            => time(),
+        ]));
+        $headers = ['Content-Type' => 'application/json', 'Accept' => 'application/json'];
+        if ($signed) {
+            $headers['X-MSTeamsFS-Signature'] = hash_hmac('sha256', $payload, $secret);
+        }
+
+        try {
+            $response = (new \GuzzleHttp\Client())->request(
+                'POST',
+                $hubUrl . $path,
+                array_merge(\Helper::setGuzzleDefaultOptions(['timeout' => 15]), [
+                    'headers'     => $headers,
+                    'body'        => $payload,
+                    'http_errors' => false,
+                ])
+            );
+        } catch (\Exception $e) {
+            \Log::error('MSTeamsFS: request to the hub (' . $path . ') failed — ' . $e->getMessage());
+            return null;
+        }
+
+        return [
+            'status' => $response->getStatusCode(),
+            'data'   => json_decode((string) $response->getBody(), true),
+        ];
+    }
+
+    /**
+     * Self-service registration (card #276): the first license activation on an
+     * install without a Backend Secret registers it with the hub, which checks the
+     * key with invAIse, claims it for this FreeScout's address and returns the
+     * Backend Secret once. Returns null on success, else an error message.
+     */
+    protected function registerWithHub(string $licenseKey): ?string
+    {
+        if (strpos((string) config('app.url'), 'https://') !== 0) {
+            return __('FreeScout\'s address (APP_URL in .env) must start with https:// to connect to Microsoft Teams.');
+        }
+
+        $result = $this->hubRequest('/teams/install/register', ['license_key' => $licenseKey], false);
+        if ($result === null) {
+            return __('Could not reach the ManagedFreeScout hub. Please try again in a few minutes.');
+        }
+        $data = is_array($result['data']) ? $result['data'] : [];
+
+        if ($result['status'] === 201 && !empty($data['backend_secret'])) {
+            \Option::set('msteamsfs.backend_secret', (string) $data['backend_secret']);
+            \Log::info('MSTeamsFS: registered with the ManagedFreeScout hub; Backend Secret stored.');
+            return null;
+        }
+
+        switch ($data['error'] ?? '') {
+            case 'license_not_valid':
+                $status = (string) ($data['status'] ?? '');
+                if ($status === 'no_activations_left') {
+                    return __('This license key is already activated on another FreeScout installation.');
+                }
+                return $this->invaiseStatusMessage($status);
+            case 'license_in_use':
+                return __('This license key is already registered to another FreeScout installation. Please contact ManagedFreeScout support.');
+            case 'url_in_use':
+                return __('This FreeScout address is already registered with a different license key. Please contact ManagedFreeScout support.');
+            case 'already_registered':
+                return __('This FreeScout is already registered with this license key, but its Backend Secret is missing here. Please contact ManagedFreeScout support to reset the registration.');
+            case 'invalid_payload':
+                return __('The license key or FreeScout\'s address (APP_URL) was not accepted.');
+            default:
+                \Log::error('MSTeamsFS: hub registration failed (HTTP ' . $result['status'] . ', ' . ($data['error'] ?? 'no details') . ')');
+                return __('Registration with the ManagedFreeScout hub failed. Please try again in a few minutes.');
+        }
+    }
+
+    /**
+     * Microsoft 365 connection (card #276): 'status' tells whether the hub knows
+     * this install's tenant; 'code' also issues a one-day connection code that an
+     * agent enters in the Teams tab. Returns the hub's JSON, or null on failure.
+     */
+    public function hubConnection(string $action): ?array
+    {
+        $path   = $action === 'code' ? '/teams/install/connect-code' : '/teams/install/status';
+        $result = $this->hubRequest($path, [], true);
+        if ($result === null || $result['status'] !== 200 || !is_array($result['data'])) {
+            if ($result !== null) {
+                \Log::error('MSTeamsFS: hub ' . $path . ' failed (HTTP ' . $result['status'] . ', '
+                    . (is_array($result['data']) ? ($result['data']['error'] ?? 'no details') : 'no JSON') . ')');
+            }
+            return null;
+        }
+        return $result['data'];
     }
 
     /**
@@ -238,6 +327,13 @@ class LicenseService
                 'valid'   => false,
                 'message' => __("This license key is already in use by the ':module' module.", ['module' => $existing->module_alias]),
             ];
+        }
+
+        if ((string) \Option::get('msteamsfs.backend_secret', '') === '') {
+            $error = $this->registerWithHub((string) $licenseKey);
+            if ($error !== null) {
+                return ['success' => false, 'valid' => false, 'status' => 'error', 'message' => $error];
+            }
         }
 
         $raw    = $this->invaiseRequest('/api/v1/license/activate', [

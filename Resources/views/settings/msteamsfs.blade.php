@@ -9,6 +9,11 @@
 {{-- License panel --}}
 @include('msteamsfs::settings.partials.license')
 
+{{-- Microsoft 365 connection panel (card #276): only once the install is registered --}}
+@if (($settings['msteamsfs.backend_secret'] ?? '') !== '')
+    @include('msteamsfs::settings.partials.connection')
+@endif
+
 {{-- Settings panel --}}
 <div class="row">
     <div class="col-xs-12">
@@ -26,8 +31,8 @@
                                    class="form-control input-sized-lg"
                                    name="settings[msteamsfs.backend_secret]"
                                    value="{{ $settings['msteamsfs.backend_secret'] ?? '' }}"
-                                   placeholder="64-character hex string">
-                            <p class="form-help">{{ __('Provided by ManagedFreeScout. Required to verify SSO tokens.') }}</p>
+                                   placeholder="{{ __('Filled in automatically when you activate your license') }}">
+                            <p class="form-help">{{ __('Set automatically on your first license activation. Only change it when ManagedFreeScout support asks you to.') }}</p>
                         </div>
                     </div>
 

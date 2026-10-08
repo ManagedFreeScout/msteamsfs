@@ -1,0 +1,5 @@
+# Internal documentation stays out of the release zip (git archive), card #271
+README.md export-ignore
+SERVER.md export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore

@@ -163,7 +163,9 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             return $response;
         }, 20, 4);
 
-        // FreeScout 1.8.219+ native CSP frame-ancestors filter
+        // Not called by FreeScout core (checked up to 1.8.245: core has no
+        // frame-ancestors filter). Harmless; the .htaccess block above is what
+        // lets Teams embed the helpdesk (card #271).
         \Eventy::addFilter('app.csp_frame_ancestors', function ($ancestors) {
             return array_values(array_unique(array_merge((array) $ancestors, self::frameAncestors())));
         });

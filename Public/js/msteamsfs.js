@@ -103,13 +103,22 @@ var _msTeamsOriginalOpen = window.open;
             return _msTeamsOriginalOpen.apply(this, arguments);
         };
 
+        // Review S3 (card #271): a GET form opens in the browser like a link,
+        // without FreeScout's CSRF _token; any other method stays inside the tab,
+        // so a POST body (and its token) never ends up in a URL or browser history.
         document.addEventListener('submit', function(e) {
             const form = e.target.closest('form[target="_blank"]');
             if (!form) return;
+            if ((form.getAttribute('method') || 'get').toLowerCase() !== 'get') {
+                form.setAttribute('target', '_self');
+                return;
+            }
             e.preventDefault();
+            const data = new FormData(form);
+            data.delete('_token');
             const action = form.action || window.location.href;
-            const params = new URLSearchParams(new FormData(form)).toString();
-            const url = params ? action + '?' + params : action;
+            const params = new URLSearchParams(data).toString();
+            const url = params ? action + (action.indexOf('?') === -1 ? '?' : '&') + params : action;
             handleLink(url);
         }, true);
     }

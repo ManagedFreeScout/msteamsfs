@@ -3,29 +3,45 @@
 Connects your FreeScout helpdesk to Microsoft Teams. Agents sign in with the
 Microsoft 365 identity they already have open — no separate password.
 
+## Requirements
+
+- FreeScout 1.8.101 or newer.
+- Apache or LiteSpeed (the module manages its own block in FreeScout's root
+  `.htaccess` so Teams may embed the helpdesk). On nginx, add the header
+  yourself: `Content-Security-Policy: frame-ancestors 'self'
+  https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com
+  https://*.cloud.microsoft`.
+- A ManagedFreeScout subscription: you receive a **Backend Secret** and a
+  **license key**.
+
 ## Installation
 
 1. In FreeScout, go to **Manage → Modules → Upload** and upload the
-   `msteamsfs.zip` release asset (no manual file copying — FreeScout extracts
-   it into `Modules/MSTeamsFS/` itself).
-2. Go to **Settings → MSTeams FS**.
-3. Paste your **Backend Secret** (provided by ManagedFreeScout when you
-   activated your license) and save. This is the only required configuration
-   — no Azure app registration, no `.env` editing.
-4. Optionally set **Allowed Domains** (comma-separated) to restrict sign-in to
-   specific email domains. Leave blank to allow any domain.
-5. In Microsoft Teams, install the "FreeScout for Teams" app (from the Teams
-   app store, or sideload the manifest if not yet published for your org).
+   `msteamsfs.zip` release asset (FreeScout extracts it into
+   `Modules/MSTeamsFS/` itself), then activate the module.
+2. Go to **Settings → MSTeams FS**, paste your **Backend Secret** and save.
+3. On the same page, enter your **License Key** and click **Activate License**. The
+   license is checked through the ManagedFreeScout hub with your Backend
+   Secret: no invAIse or Azure credentials and no `.env` editing are needed.
+4. Set **Allowed Domains** (comma-separated email domains, e.g.
+   `example.com`). Only Microsoft accounts in these domains can sign in.
+   Recommended: leave it blank only if every account in your Microsoft tenant
+   may use the helpdesk.
+5. Optional: under **User Creation**, tick **Create Users** ("Automatically
+   create a FreeScout user on their first Teams sign-in") and choose the
+   mailboxes new users get. New users always get the role User, never Admin,
+   and this needs Allowed Domains.
+6. In Microsoft Teams, install the "FreeScout for Teams" app.
 
 ## Notes
 
-- Sign-in matches by **email only** — the module does **not** create
-  FreeScout users automatically. The Microsoft account's email must already
-  match an existing FreeScout user, or sign-in is refused.
-- Route: `GET /teams-sso-handoff` (see `TeamsSsoController::handoff()`), not
-  `/teams-entry` or `/teams-sso-login` — this file previously described an
-  earlier prototype design that used those names; it never shipped that way.
-- Token validation happens on the **ManagedFreeScout backend**
-  (`app.managedfreescout.com`), not against Azure AD JWKS directly from this
-  module — see the main `README.md`'s "Full SSO flow" section for the
-  complete picture.
+- Sign-in matches the Microsoft account's email to a FreeScout user. Without
+  automatic creation, the user must already exist. After the first sign-in the
+  user is tied to that Microsoft identity; disabled users are refused.
+- Seats: each person who signs in through Teams occupies one seat of your
+  license. When all seats are taken, new people see "No more license seats
+  are available" until a seat is freed or added.
+- The license is re-checked every 6 hours. If the hub cannot be reached, the
+  last known status stays in force (for up to 14 days).
+- Upgrading from 1.6.x: any `MSTEAMSFS_INVAISE_*` lines in `.env` are no longer
+  used (since 1.7.0) and can be removed.

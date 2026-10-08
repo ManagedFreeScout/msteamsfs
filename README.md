@@ -7,7 +7,7 @@
 
 ---
 
-## Current state (1.8.0, 2026-10-08): read this first
+## Current state (1.8.1, 2026-10-08): read this first
 
 The rest of this file is a development log: each section describes the module as it was
 on its date. Where it disagrees with this summary, this summary wins. The install guide
@@ -33,6 +33,11 @@ for customers is `README-install.md`.
 - **Licence table:** the module creates the shared `modules_licenses` table itself if it is
   missing (1.6.7). A cached licence older than 14 days counts as invalid; every invAIse
   answer resets that clock (1.6.4).
+- **Outlook and the Microsoft 365 app** (1.8.1, card #283): the same Teams app runs there.
+  The `.htaccess` frame-ancestors block also allows `*.microsoft365.com`, `*.office.com`,
+  `outlook.office.com`, `outlook.office365.com` and the two `outlook-sdf` hosts (Microsoft's
+  list). Sign-in there also needs the Outlook/Microsoft 365 client IDs under Authorized client
+  applications in our Azure app (added 2026-10-08).
 - **Requires FreeScout 1.8.101+** (`requiredAppVersion`; the `csp.script_src` hook).
   FreeScout core has no frame-ancestors filter: the module's `.htaccess` block is what
   lets Teams embed the helpdesk. nginx installs must add that header themselves.
@@ -187,6 +192,13 @@ MSTeamsFS/
 ---
 
 ## Changelog
+
+### 1.8.1 (2026-10-08) — FreeScout also opens from Outlook and the Microsoft 365 app (board card #283)
+
+Opening the app from Outlook signed in fine after the Azure app got the Outlook/Microsoft 365
+client IDs, but FreeScout then refused to show inside Outlook: the `.htaccess` CSP block only
+allowed Teams. It now also allows Microsoft's Outlook and Microsoft 365 hosts. The block is
+rewritten automatically on the first page load after the update.
 
 ### 1.8.0 (2026-10-08) — Self-service onboarding (board card #276)
 

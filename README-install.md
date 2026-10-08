@@ -1,6 +1,6 @@
 <!-- GENERATED, do not edit here. Single source of truth: the Claude Doc "MSTeamsFS — Installation Guide"
      (https://claude.ai/code/artifact/7af82796-06b1-450d-b36b-32884e11dc17). Re-exported into this file at every
-     module release, see the Doc "Module release procedure (GitHub)". Last export: 2026-10-08 (1.8.0). -->
+     module release, see the Doc "Module release procedure (GitHub)". Last export: 2026-10-08 (1.8.1). -->
 
 # MSTeamsFS — Installation Guide
 
@@ -15,7 +15,7 @@ This works without any Azure Portal involvement on your side. Managed FreeScout 
 **Before you start, you'll need:**
 
 - A self-hosted FreeScout installation on https://, with Manage → Modules access
-- FreeScout 1.8.101 or newer. On Apache or LiteSpeed the module sets the header that lets Teams show FreeScout; on nginx your admin adds it once: `Content-Security-Policy: frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.cloud.microsoft`
+- FreeScout 1.8.101 or newer. On Apache or LiteSpeed the module sets the header that lets Teams and Outlook show FreeScout; on nginx your admin adds it once: `Content-Security-Policy: frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.cloud.microsoft https://*.microsoft365.com https://*.office.com https://outlook.office.com https://outlook.office365.com https://outlook-sdf.office.com https://outlook-sdf.office365.com`
 - An active MSTeamsFS license (Part 1 covers ordering one)
 - Someone with the Teams Administrator or Global Administrator role in your Microsoft 365 tenant — needed for Parts 2 and 4
 - About 15–20 minutes, most of it waiting on Microsoft's own propagation delays rather than active work

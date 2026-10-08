@@ -352,12 +352,20 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         $kernel->prependMiddleware(\Modules\MSTeamsFS\Http\Middleware\InjectTeams404ReloadScript::class);
     }
 
-    // Sites that may always show FreeScout in a frame: Microsoft Teams in all its hosts.
+    // Sites that may always show FreeScout in a frame: Microsoft Teams, plus Outlook and
+    // the Microsoft 365 app, which run the same Teams app (card #283; Microsoft's list in
+    // "Extend Personal Tab to Microsoft 365").
     const TEAMS_FRAME_ANCESTORS = [
         'https://teams.microsoft.com',
         'https://*.teams.microsoft.com',
         'https://*.skype.com',
         'https://*.cloud.microsoft',
+        'https://*.microsoft365.com',
+        'https://*.office.com',
+        'https://outlook.office.com',
+        'https://outlook.office365.com',
+        'https://outlook-sdf.office.com',
+        'https://outlook-sdf.office365.com',
     ];
 
     const HTACCESS_BEGIN = '# BEGIN MSTeamsFS';

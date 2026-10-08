@@ -52,9 +52,12 @@
                 statusEl.appendChild(document.createTextNode('{{ __("Connected. Agents can sign in from the FreeScout for Teams app.") }}'));
                 stepsEl.style.display = 'none';
             } else {
-                statusEl.className = 'alert alert-warning margin-bottom-0';
-                statusEl.innerHTML = '<i class="glyphicon glyphicon-warning-sign"></i> ';
-                statusEl.appendChild(document.createTextNode('{{ __("Not connected to your Microsoft 365 organisation yet.") }}'));
+                statusEl.className = 'alert alert-info margin-bottom-0';
+                statusEl.innerHTML = '<i class="glyphicon glyphicon-info-sign"></i> ';
+                var strong = document.createElement('strong');
+                strong.textContent = '{{ __("Step 2 of 2:") }} ';
+                statusEl.appendChild(strong);
+                statusEl.appendChild(document.createTextNode('{{ __("connect your Microsoft 365 organisation, so your colleagues can sign in from Teams.") }}'));
                 stepsEl.style.display = 'block';
             }
         }

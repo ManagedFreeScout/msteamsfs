@@ -24,17 +24,40 @@
                     {{ csrf_field() }}
                     <input type="hidden" name="settings[dummy]" value="1" />
 
+                    {{-- Backend Secret (card #276, 1.8.0): set automatically on the first license
+                         activation and never shown. An empty field keeps the stored secret (see
+                         settings.before_save); support can have it replaced. --}}
+                    @php $mstfsSecretSet = ($settings['msteamsfs.backend_secret'] ?? '') !== ''; @endphp
                     <div class="form-group">
                         <label class="col-sm-2 control-label">{{ __('Backend Secret') }}</label>
                         <div class="col-sm-6">
-                            <input type="text"
-                                   class="form-control input-sized-lg"
-                                   name="settings[msteamsfs.backend_secret]"
-                                   value="{{ $settings['msteamsfs.backend_secret'] ?? '' }}"
-                                   placeholder="{{ __('Filled in automatically when you activate your license') }}">
-                            <p class="form-help">{{ __('Set automatically on your first license activation. Only change it when ManagedFreeScout support asks you to.') }}</p>
+                            <p class="form-control-static">
+                                @if ($mstfsSecretSet)
+                                    <span class="text-success"><i class="glyphicon glyphicon-ok"></i> {{ __('Set') }}</span>
+                                    &mdash; {{ __('filled in automatically, you never need to see or copy it.') }}
+                                @else
+                                    {{ __('Not set yet. It is filled in automatically when you click Activate License above.') }}
+                                @endif
+                                <a href="#" id="msteamsfs-secret-replace">{{ $mstfsSecretSet ? __('Replace') : __('Enter manually') }}</a>
+                            </p>
+                            <div id="msteamsfs-secret-input" style="display:none">
+                                <input type="text"
+                                       class="form-control input-sized-lg"
+                                       name="settings[msteamsfs.backend_secret]"
+                                       value=""
+                                       autocomplete="off"
+                                       placeholder="{{ __('64-character secret from ManagedFreeScout support') }}">
+                                <p class="form-help">{{ __('Only when ManagedFreeScout support asks you to. Leave empty to keep the current secret.') }}</p>
+                            </div>
                         </div>
                     </div>
+                    <script type="text/javascript" {!! \Helper::cspNonceAttr() !!}>
+                        document.getElementById('msteamsfs-secret-replace').addEventListener('click', function (e) {
+                            e.preventDefault();
+                            document.getElementById('msteamsfs-secret-input').style.display = 'block';
+                            this.style.display = 'none';
+                        });
+                    </script>
 
                     <div class="form-group">
                         <label class="col-sm-2 control-label">{{ __('Allowed Domains') }}</label>

@@ -144,6 +144,18 @@ class MSTeamsFSServiceProvider extends ServiceProvider
                 return $request;
             }
             $values = $request->settings;
+            // Backend Secret (card #276): the field is empty unless someone chose
+            // "Replace". FreeScout removes any setting missing from the form, so
+            // always send the stored secret back unless a valid new one was given.
+            $newSecret = strtolower(trim((string) ($values['msteamsfs.backend_secret'] ?? '')));
+            if ($newSecret !== '' && !preg_match('/^[0-9a-f]{64}$/', $newSecret)) {
+                $request->session()->flash('flash_error_floating', __('Backend Secret not changed: it must be 64 characters, 0-9 and a-f.'));
+                $newSecret = '';
+            }
+            $values['msteamsfs.backend_secret'] = $newSecret !== ''
+                ? $newSecret
+                : (string) \Option::get('msteamsfs.backend_secret', '', true, false);
+            $request->merge(['settings' => $values]);
             if (array_key_exists('msteamsfs.extra_frame_ancestors', $values)) {
                 list($valid, $invalid) = self::parseFrameAncestors((string) $values['msteamsfs.extra_frame_ancestors']);
                 $values['msteamsfs.extra_frame_ancestors'] = implode("\n", $valid);

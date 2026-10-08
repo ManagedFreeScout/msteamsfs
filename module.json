@@ -2,7 +2,7 @@
   "name": "MSTeamsFS",
   "alias": "msteamsfs",
   "description": "Receive and verify ManagedFreeScout Teams SSO handoff tokens and log the agent into FreeScout.",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "requiredAppVersion": "1.8.101",
   "author": "StackPros",
   "keywords": [],

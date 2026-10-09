@@ -1,7 +1,7 @@
 <div class="row">
     <div class="col-xs-12">
         <div class="alert alert-info">
-            <strong>{{ __('MSTeams FS') }}</strong> &mdash; {{ __('ManagedFreeScout Microsoft Teams SSO') }}
+            <strong>{{ __('MFS Connect') }}</strong> &mdash; {{ __('Your FreeScout helpdesk inside Microsoft Teams') }}
         </div>
     </div>
 </div>
@@ -127,7 +127,7 @@
                                       name="settings[msteamsfs.extra_frame_ancestors]"
                                       rows="3"
                                       placeholder="https://helpcenter.example.com">{{ $settings['msteamsfs.extra_frame_ancestors'] ?? '' }}</textarea>
-                            <p class="form-help">{{ __('Websites, besides Microsoft Teams, that may show FreeScout inside a frame. One per line, e.g. https://helpcenter.example.com or https://*.example.com. MSTeamsFS writes these into the Content-Security-Policy block it manages in .htaccess, so do not edit that block by hand.') }}</p>
+                            <p class="form-help">{{ __('Websites, besides Microsoft Teams, that may show FreeScout inside a frame. One per line, e.g. https://helpcenter.example.com or https://*.example.com. MFS Connect writes these into the Content-Security-Policy block it manages in .htaccess, so do not edit that block by hand.') }}</p>
                         </div>
                     </div>
 

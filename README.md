@@ -193,6 +193,12 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.9.0 (2026-10-09) — Rebrand: MSTeamsFS is now MFS Connect (board card #294)
+
+New customer-facing name and icon: the module, its settings page and the Teams app are now called
+MFS Connect. Text and icon only, no functional changes. Existing installs keep working; settings,
+licence, the module folder (`Modules/MSTeamsFS`), alias `msteamsfs` and all URLs are unchanged.
+
 ### 1.8.1 (2026-10-08) — FreeScout also opens from Outlook and the Microsoft 365 app (board card #283)
 
 Opening the app from Outlook signed in fine after the Azure app got the Outlook/Microsoft 365

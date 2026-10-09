@@ -8,7 +8,7 @@
                 <div id="msteamsfs-conn-status"><i class="glyphicon glyphicon-refresh"></i> {{ __('Checking…') }}</div>
 
                 <div id="msteamsfs-conn-steps" style="display:none" class="margin-top">
-                    <p>{{ __('To connect, get a code here and enter it in Microsoft Teams. The first time anyone in your organisation opens the "FreeScout for Teams" app, it asks for this code. You only need to do this once.') }}</p>
+                    <p>{{ __('To connect, get a code here and enter it in Microsoft Teams. The first time anyone in your organisation opens the "MFS Connect" app, it asks for this code. You only need to do this once.') }}</p>
                     <button type="button" class="btn btn-primary" id="msteamsfs-conn-code-btn">
                         <i class="glyphicon glyphicon-link"></i> {{ __('Get connection code') }}
                     </button>
@@ -49,7 +49,7 @@
             if (data.tenant_connected) {
                 statusEl.className = 'alert alert-success margin-bottom-0';
                 statusEl.innerHTML = '<i class="glyphicon glyphicon-ok"></i> ';
-                statusEl.appendChild(document.createTextNode('{{ __("Connected. Agents can sign in from the FreeScout for Teams app.") }}'));
+                statusEl.appendChild(document.createTextNode('{{ __("Connected. Agents can sign in from the MFS Connect app.") }}'));
                 stepsEl.style.display = 'none';
             } else {
                 statusEl.className = 'alert alert-info margin-bottom-0';

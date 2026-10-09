@@ -44,10 +44,10 @@ class MSTeamsFSServiceProvider extends ServiceProvider
 
         \Eventy::addFilter('settings.sections', function ($sections) {
             $sections['msteamsfs'] = [
-                'title'       => __('MSTeams FS'),
+                'title'       => __('MFS Connect'),
                 'icon'        => 'lock',
                 'order'       => 300,
-                'description' => __('ManagedFreeScout Teams SSO settings.'),
+                'description' => __('Microsoft Teams sign-in and notifications.'),
             ];
             return $sections;
         }, 15);

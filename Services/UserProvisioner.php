@@ -104,7 +104,7 @@ class UserProvisioner
 
         try {
             \MailHelper::sendAlertMail(
-                'A new FreeScout user was created automatically on their first Microsoft Teams sign-in (MSTeamsFS).'
+                'A new FreeScout user was created automatically on their first Microsoft Teams sign-in (MFS Connect).'
                 ."\n\nName: ".trim($user->first_name.' '.$user->last_name)
                 ."\nEmail: ".$user->email
                 ."\nRole: User"

@@ -13,7 +13,7 @@ class TeamsSsoController extends Controller
         // License gate — checked before any token processing
         $isLicensed = \Modules\MSTeamsFS\Services\LicenseService::isLicensed();
         if (!$isLicensed) {
-            return response('MSTeamsFS license not active.', 403);
+            return response('MFS Connect license not active.', 403);
         }
 
         $backendSecret = (string)(\Option::get('msteamsfs.backend_secret') ?? '');
@@ -174,7 +174,7 @@ class TeamsSsoController extends Controller
             // unknown, or that has no license linked at all.
             if ($consumeResponse->getStatusCode() === 403 && ($consumeBody['error'] ?? '') === 'license_inactive') {
                 \Log::warning('MSTeamsFS: Teams sign-in refused, license not active on the hub — email=' . $email);
-                return $this->errorResponse('Your organization\'s MSTeamsFS license is not active. Ask your administrator to renew it, then reload the Teams tab.', 403);
+                return $this->errorResponse('Your organization\'s MFS Connect license is not active. Ask your administrator to renew it, then reload the Teams tab.', 403);
             }
             if ($consumeResponse->getStatusCode() !== 200 || empty($consumeBody['consumed'])) {
                 \Log::warning('MSTeamsFS: handoff token rejected by hub (already used, expired, or unknown) — possible replay, email=' . $email);

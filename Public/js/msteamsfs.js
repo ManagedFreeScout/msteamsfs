@@ -21,6 +21,14 @@ var _msTeamsOriginalOpen = window.open;
         return linkUrl.pathname.indexOf('/storage/attachment/') !== -1;
     }
 
+    // FreeScout's print view (/conversation/<id>?...print=1): FreeScout's own Print link and
+    // MFS Print's options form. Inside the Teams tab it would replace FreeScout in the tab;
+    // like an attachment it goes to the browser via the hub, where FreeScout asks for the
+    // normal login once and then opens the print dialog (msteamsfs card #308, 1.9.2).
+    function isPrintUrl(linkUrl) {
+        return /^\/conversation\/\d+$/.test(linkUrl.pathname) && linkUrl.searchParams.get('print') === '1';
+    }
+
     function hubAttachmentUrl(linkUrl) {
         const meta = document.querySelector('meta[name="msteamsfs-backend-url"]');
         const hub = meta && meta.getAttribute('content');
@@ -32,7 +40,7 @@ var _msTeamsOriginalOpen = window.open;
         try {
             let linkUrl = new URL(url, window.location.href);
             const currentHost = window.location.hostname;
-            if (linkUrl.hostname === currentHost && isAttachmentUrl(linkUrl)) {
+            if (linkUrl.hostname === currentHost && (isAttachmentUrl(linkUrl) || isPrintUrl(linkUrl))) {
                 const viaHub = hubAttachmentUrl(linkUrl);
                 if (viaHub) linkUrl = new URL(viaHub);
             }

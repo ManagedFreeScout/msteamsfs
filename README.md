@@ -193,6 +193,15 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.9.2 (2026-10-09) — Print opens in a browser tab from Teams (board card msteamsfs #308)
+
+Inside the Teams tab, FreeScout's Print item (and MFS Print's options window) replaced FreeScout in the
+tab with the print view. A conversation print URL (/conversation/<id> with print=1) now leaves the tab
+like an attachment: via the hub's /teams/open-attachment page, which forwards the system browser to it
+(the hub only accepts that exact path plus folder_id and MFS Print's exclude flags, on a registered
+install). In the browser FreeScout asks for the normal login once and opens the print dialog. Needs hub
+cfs-backend 62af6ff (PROD) / cfs-acc 6b936eb (ACC). No other changes.
+
 ### 1.9.1 (2026-10-09) — Fix: the 6-hourly licence check now runs (board card freescout-modules #305)
 
 The licence re-check every 6 hours was registered with Eventy addAction, but FreeScout builds its

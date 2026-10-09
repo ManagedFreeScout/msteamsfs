@@ -1,10 +1,10 @@
 <!-- GENERATED, do not edit here. Single source of truth: the Claude Doc "MFS Connect — Installation Guide"
      (https://claude.ai/code/artifact/7af82796-06b1-450d-b36b-32884e11dc17). Re-exported into this file at every
-     module release, see the Doc "Module release procedure (GitHub)". Last export: 2026-10-09 (rebrand, before 1.9.0). -->
+     module release, see the Doc "Module release procedure (GitHub)". Last export: 2026-10-09 (Doc rev 50, release 1.9.1). -->
 
 # MFS Connect — Installation Guide
 
-Sep 25, 2026 · @StackPros
+Oct 9, 2026 · @StackPros
 
 ## Overview & what you'll need
 
@@ -36,7 +36,7 @@ This works without any Azure Portal involvement on your side. Managed FreeScout 
 
 MFS Connect isn't yet listed in the Microsoft Teams app store (submission is in progress), so for now your Teams admin sideloads it directly — a few clicks, no store review or waiting involved.
 
-1. Get the Teams app package (a small .zip) as described in your confirmation email, or ask support@managedfreescout.com if you can't find it.
+1. Download the Teams app package, **MFS Connect** (a small .zip), from the Downloads block of the [MFS Connect help center page](https://managedfreescout.com/support/msteamsfs/), or directly: [mfs-connect-teams-app.zip](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/mfs-connect-teams-app.zip). If you can't get it, ask support@managedfreescout.com.
 2. Go to the [Teams Admin Center](https://admin.teams.microsoft.com) → **Teams apps → Manage apps**.
 3. Click **Actions → Upload new app**, and select the zip.
 4. Open the app's entry → **Permissions** tab and review the two requests: **User.Read** (delegated — lets Teams vouch for the agent's identity at sign-in) and **TeamsActivity.Send.User** (an application-level, resource-specific permission — lets MFS Connect post the toast/bell/Activity Feed notification when a ticket is assigned, replied to, or gets a note). Neither grants mailbox, calendar, or file access.

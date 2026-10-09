@@ -213,7 +213,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         // it from weekly to 6-hourly is the whole fix for the common case.
         // cron() used directly since this Laravel version has no
         // everySixHours()/everyNHours() helper (checked before using it).
-        \Eventy::addAction('schedule', function ($schedule) {
+        \Eventy::addFilter('schedule', function ($schedule) {
             $schedule->call(function () {
                 $licenseService = app(LicenseService::class);
                 $status = $licenseService->getLicenseStatus();
@@ -221,6 +221,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
                     $licenseService->validateLicense($status['license_key']);
                 }
             })->cron('0 */6 * * *');
+            return $schedule;
         }, 20, 1);
     }
 

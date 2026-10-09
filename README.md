@@ -193,6 +193,12 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.9.1 (2026-10-09) — Fix: the 6-hourly licence check now runs (board card freescout-modules #305)
+
+The licence re-check every 6 hours was registered with Eventy addAction, but FreeScout builds its
+schedule with Eventy::filter('schedule'), so the check never ran and only manual checks kept the
+licence fresh. It now uses addFilter, like the official modules. No other changes.
+
 ### 1.9.0 (2026-10-09) — Rebrand: MSTeamsFS is now MFS Connect (board card #294)
 
 New customer-facing name and icon: the module, its settings page and the Teams app are now called

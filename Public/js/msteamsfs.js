@@ -59,7 +59,10 @@ var _msTeamsOriginalOpen = window.open;
                 // exact branch again, recursing until the browser throws a RangeError
                 // (silently swallowed by the catch below). Only hit when TeamsJS isn't
                 // available on this page at all, so the openLink() branch above never runs.
-                _msTeamsOriginalOpen.call(window, linkUrl.href, '_blank');
+                // noopener (card #308 follow-up, 1.9.3): without it the new tab keeps an opener link to this
+                // tab, Edge runs both same-site pages in one process, and the print dialog that FreeScout's
+                // print view opens freezes the Teams tab until the dialog is closed.
+                _msTeamsOriginalOpen.call(window, linkUrl.href, '_blank', 'noopener');
             }
         } catch(e) { }
     }

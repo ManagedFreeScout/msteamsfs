@@ -193,6 +193,13 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.9.3 (2026-10-09) — Fix: the Teams tab no longer freezes while the print preview is open (board card msteamsfs #308)
+
+Print (1.9.2) and attachments open in a new browser tab via the hub. That tab was opened without
+noopener, so it kept an opener link to the FreeScout tab in Teams; Edge then ran both same-site pages in
+one process, and the print dialog froze the Teams tab until it was closed. The new tab is now opened
+with noopener. No other changes.
+
 ### 1.9.2 (2026-10-09) — Print opens in a browser tab from Teams (board card msteamsfs #308)
 
 Inside the Teams tab, FreeScout's Print item (and MFS Print's options window) replaced FreeScout in the

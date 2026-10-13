@@ -13,7 +13,6 @@ This works without any Azure Portal involvement on your side. Managed FreeScout 
 
 - A self-hosted FreeScout installation on https://, with Manage → Modules access
 - FreeScout 1.8.101 or newer. On Apache or LiteSpeed the module sets the header that lets Teams and Outlook show FreeScout; on nginx your admin adds it once: `Content-Security-Policy: frame-ancestors 'self' https://teams.microsoft.com https://*.teams.microsoft.com https://*.skype.com https://*.cloud.microsoft https://*.microsoft365.com https://*.office.com https://outlook.office.com https://outlook.office365.com https://outlook-sdf.office.com https://outlook-sdf.office365.com`
-- Access to FreeScout's `.env` file, for two session settings (Part 1, step 3)
 - An active MFS Connect license (Part 1 covers ordering one)
 - Someone with the Teams Administrator or Global Administrator role in your Microsoft 365 tenant — needed for Parts 2 and 4
 - About 15–20 minutes, most of it waiting on Microsoft's own propagation delays rather than active work
@@ -24,11 +23,7 @@ This works without any Azure Portal involvement on your side. Managed FreeScout 
 
 1. Order an MFS Connect license at [managedfreescout.com](https://managedfreescout.com). Your **License Key** is in the confirmation email you receive after ordering. That email also explains how to manage your subscription, seats and keys. The key is the only thing you will ever paste.
 2. Download the module zip and unzip it into your FreeScout installation's Modules/ folder (with FTP, SSH or your hosting control panel's file manager), so the files land in Modules/MSTeamsFS/. Then go to Manage → Modules and click Activate. FreeScout's Modules page has no upload button for modules from outside its own module store, so this first installation is done on the server; later updates appear on Manage → Modules with an Update now button.
-3. Make sure FreeScout's sign-in cookie works inside Teams. Teams shows FreeScout inside its own window, and browsers only keep FreeScout's session there when the cookie allows it. Check that FreeScout's `.env` file (in the FreeScout root folder) contains these two lines, add them if they are missing, and then clear the cache under **Manage → System → Tools → Clear Cache** (or run `php artisan freescout:clear-cache`):
-   - `SESSION_SECURE_COOKIE=true`
-   - `SESSION_SAME_SITE=none`
-
-   Without them, signing in from Teams seems to work, but you land on the normal FreeScout login screen.
+3. Nothing to do for the sign-in cookie: since version 1.9.4, MFS Connect keeps FreeScout's sign-in working inside Teams by itself (on https it sets FreeScout's session cookie to SameSite=None and Secure, which browsers require inside Teams). Only if **Settings → MFS Connect** shows a yellow warning, for example because FreeScout does not run on https, add `SESSION_SECURE_COOKIE=true` and `SESSION_SAME_SITE=none` to FreeScout's `.env` file and clear the cache under **Manage → System → Tools → Clear Cache**.
 4. Go to **Settings → MFS Connect** in FreeScout and fill in these settings (the last two are optional):
    - **License Key** — paste it and click **Activate License**. This also registers your FreeScout with Managed FreeScout: the Backend Secret field then shows **Set ✓** by itself. You never need to see, copy or store that secret. Once active, this screen also shows a live "Seats: X of Y used" counter.
    - **Allowed Domains** (optional) — a comma-separated list of email domains permitted to sign in via Teams SSO (e.g. `yourcompany.nl`). Leave it blank to allow anyone who successfully authenticates through your Microsoft 365 tenant; only worth setting if your tenant includes guest or external accounts you don't want signing into FreeScout this way.
@@ -104,7 +99,7 @@ For each agent: open Teams (desktop, web, or mobile) → click the FreeScout tab
 
 - **Teams shows "Connect your helpdesk"** — your organisation isn't connected yet: do Part 3. "This code is not valid or has expired" means get a new code in FreeScout.
 - **Activate License says the key or address is already registered** — a license works for one FreeScout address. To move to a new address or reinstall from scratch, contact support.
-- **Teams shows the normal FreeScout login screen** — the sign-in worked, but the browser dropped FreeScout's session cookie inside Teams. Add `SESSION_SECURE_COOKIE=true` and `SESSION_SAME_SITE=none` to FreeScout's `.env`, clear the cache (Manage → System → Tools → Clear Cache), then close and reopen the Teams tab. See Part 1, step 3.
+- **Teams shows the normal FreeScout login screen** — the browser dropped FreeScout's session cookie inside Teams. Update MFS Connect to version 1.9.4 or newer, which fixes this by itself on https, then close and reopen the Teams tab. Still happening? **Settings → MFS Connect** then shows a yellow warning that says what to change (see Part 1, step 3).
 - **"Access denied" or a blank tab** — most likely no FreeScout account matches that Microsoft account (or it is linked to a different one), or your license/seat count is exhausted. MFS Connect is fail-closed by design: if it can't verify your license or the signed handoff token, it denies access rather than guessing.
 - **"Your organization's MFS Connect license is not active"** — the license is suspended, expired or not linked to your install. Renew it as described in your confirmation email, or contact support, then reload the Teams tab.
 - **Works on desktop but not on web (browser)** — ask your Teams admin to confirm nothing on your network blocks Microsoft's `*.cloud.microsoft` domain. This is a known Teams-web-specific requirement, unrelated to your FreeScout install.

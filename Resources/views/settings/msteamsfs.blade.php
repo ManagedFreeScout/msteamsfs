@@ -6,6 +6,20 @@
     </div>
 </div>
 
+{{-- Card #312: the session cookie must survive inside the Teams frame (SameSite=None + Secure). The
+     module sets this itself on https; this shows when it is off or FreeScout is not on https. --}}
+@if (empty($settings['session_cookie_ok']))
+<div class="row">
+    <div class="col-xs-12">
+        <div class="alert alert-warning">
+            <strong>{{ __('Teams sign-in would end on the FreeScout login screen.') }}</strong>
+            {{ __('Inside Microsoft Teams, the browser only keeps the FreeScout session when its cookie is set to SameSite=None and Secure. MFS Connect sets this itself when FreeScout runs on https.') }}
+            {{ __('Use https in APP_URL, or add SESSION_SECURE_COOKIE=true and SESSION_SAME_SITE=none to the .env file of FreeScout and clear the cache.') }}
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- License panel --}}
 @include('msteamsfs::settings.partials.license')
 

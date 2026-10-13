@@ -14,6 +14,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->registerConfig();
+        $this->fixSessionCookieForTeams();
         $this->registerViews();
         $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
         $this->hooks();
@@ -31,6 +32,23 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         $this->app->singleton(LicenseService::class, function ($app) {
             return new LicenseService();
         });
+    }
+
+    // Card #312: without SameSite=None + Secure on the FreeScout session cookie, the browser drops it inside
+    // the Teams frame and the agent lands on the FreeScout login screen right after a successful Teams
+    // sign-in. Set here in boot(), before StartSession builds the cookie. Only on https: browsers reject
+    // SameSite=None without Secure.
+    protected function fixSessionCookieForTeams()
+    {
+        if (!config('msteamsfs.session_cookie_fix', true) || stripos((string) config('app.url'), 'https://') !== 0) {
+            return;
+        }
+        config(['session.same_site' => 'none', 'session.secure' => true]);
+    }
+
+    public static function sessionCookieWorksInTeams()
+    {
+        return strtolower((string) config('session.same_site')) === 'none' && (bool) config('session.secure');
     }
 
     protected function registerConfig()
@@ -65,6 +83,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             // Extra sites allowed to show FreeScout in a frame (card #249, 1.6.2)
             $settings['msteamsfs.extra_frame_ancestors'] = (string)(\Option::get('msteamsfs.extra_frame_ancestors') ?? '');
             $settings['license_status']             = app(LicenseService::class)->getLicenseStatus();
+            $settings['session_cookie_ok']          = self::sessionCookieWorksInTeams();
             return $settings;
         }, 20, 2);
 

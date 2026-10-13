@@ -27,4 +27,9 @@ return [
     // Flipped to the PROD hub 2026-07-17 for real org-wide rollout (was
     // acc.managedfreescout.com during ACC-only dev/testing).
     'backend_url'        => env('MSTEAMSFS_BACKEND_URL', 'https://app.managedfreescout.com'),
+    // Teams shows FreeScout inside a frame of teams.cloud.microsoft, a third-party context. Browsers only
+    // keep the FreeScout session there when the cookie is SameSite=None and Secure, so on https the module
+    // sets both itself (card #312) and customers need no .env change. MSTEAMSFS_SESSION_COOKIE_FIX=false
+    // switches this off; the settings page then warns when the cookie would be dropped.
+    'session_cookie_fix' => env('MSTEAMSFS_SESSION_COOKIE_FIX', true),
 ];

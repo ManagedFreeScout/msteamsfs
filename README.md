@@ -7,12 +7,16 @@
 
 ---
 
-## Current state (1.8.1, 2026-10-08): read this first
+## Current state (1.9.6, 2026-10-15): read this first
 
 The rest of this file is a development log: each section describes the module as it was
 on its date. Where it disagrees with this summary, this summary wins. The install guide
 for customers is `README-install.md`.
 
+- **No Log out inside Teams/Outlook/M365** (1.9.6, card #336): in the iframe-only block of
+  `Public/js/msteamsfs.js` a <style id="msteamsfs-hide-logout"> (li:has(> #logout-link) + the divider)
+  plus a hideLogout() fallback hide FreeScout's Log out; the logout POST was refused in the frame
+  ("page expired") and identity is owned by the host anyway. Normal browser tabs unchanged.
 - **Self-service onboarding** (1.8.0, card #276): Activate License on an install without a
   Backend Secret first calls the unsigned `POST /teams/install/register` (licence key + APP_URL,
   https only); the hub activates the key in invAIse for that domain, claims it for this one

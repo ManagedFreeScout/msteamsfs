@@ -8,6 +8,16 @@ var _msTeamsOriginalOpen = window.open;
     // Only run inside an iframe (Teams)
     if (window.self === window.top) return;
 
+    // Card #336 (v1.9.6): no Log out inside Teams/Outlook/M365 (see hideLogout() below for why).
+    // A stylesheet rule, added before the page has finished loading, so it holds no matter when
+    // or how the user menu is rendered; hideLogout() below is the fallback for webviews without :has().
+    try {
+        var hideLogoutStyle = document.createElement('style');
+        hideLogoutStyle.id = 'msteamsfs-hide-logout';
+        hideLogoutStyle.textContent = 'li:has(> #logout-link), li.divider:has(+ li > #logout-link) { display: none !important; }';
+        (document.head || document.documentElement).appendChild(hideLogoutStyle);
+    } catch (e) { /* the fallback below still runs */ }
+
     // FreeScout attachments (/storage/attachment/...?id=..&token=..) are
     // same-site, and inside the Teams tab a PDF is then blocked ("This page
     // has been blocked by Microsoft Edge"). FreeScout pages have no TeamsJS,
@@ -196,6 +206,25 @@ var _msTeamsOriginalOpen = window.open;
         console.log('[MSTeamsFS] pageshow persisted=true — forcing reload to recover from a possibly stale/frozen page');
         window.location.reload();
     });
+
+    // No sign-out inside Teams, Outlook or the Microsoft 365 app (card #336, v1.9.6): the
+    // identity there is owned by the host session (Teams SSO), so FreeScout's Log out cannot
+    // end the session it appears to end. Inside the frame its POST is also refused ("The page
+    // has expired"), and a reload signs the agent straight back in. Hide the menu item and the
+    // divider above it; in a normal browser tab (no frame) nothing changes.
+    function hideLogout() {
+        var link = document.getElementById('logout-link');
+        if (!link || !link.parentNode) return;
+        var item = link.parentNode;
+        item.style.display = 'none';
+        var prev = item.previousElementSibling;
+        if (prev && prev.classList && prev.classList.contains('divider')) prev.style.display = 'none';
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hideLogout);
+    } else {
+        hideLogout();
+    }
 })();
 
 // License management — used by settings page only

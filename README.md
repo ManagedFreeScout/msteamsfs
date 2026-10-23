@@ -197,6 +197,11 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.9.7 (2026-10-23) — Square module icon (board card msteamsfs #383)
+
+- Public/img/msteamsfs-icon.png: no 8px transparent border and no rounded corners any more, so the icon fills the tile like FreeScout's own module icons (FreeScout rounds every module icon by 5px itself). Corners filled with the icon's own colours.
+- Also ships LICENSE (AGPL-3.0) and the composer.json licence field from card #273.
+
 ### 1.9.3 (2026-10-09) — Fix: the Teams tab no longer freezes while the print preview is open (board card msteamsfs #308)
 
 Print (1.9.2) and attachments open in a new browser tab via the hub. That tab was opened without

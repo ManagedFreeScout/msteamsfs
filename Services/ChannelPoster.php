@@ -28,7 +28,44 @@ class ChannelPoster
     // Results from the hub that mean the post did not happen and the admin should look.
     const PROBLEM_RESULTS = ['channel_inactive', 'channel_unsupported', 'bot_removed', 'channel_unknown', 'failed', 'unreachable', 'license_inactive', 'tenant_not_connected', 'bot_not_configured'];
 
+    // The channel itself is the problem (not a passing failure): FreeScout's admins get an alert.
+    const DEAD_CHANNEL_RESULTS = ['channel_inactive', 'bot_removed', 'channel_unknown', 'channel_unsupported'];
+
     protected static $sentThisRequest = [];
+
+    // E-mail FreeScout's admins (and Settings → Alerts recipients) once a day per channel.
+    protected static function alertAdmins($channelId, $result, Conversation $conversation, $ruleId)
+    {
+        $key = 'msteamsfs.channel_alert.' . sha1($channelId . '|' . $result);
+        if (\Cache::has($key)) {
+            return;
+        }
+        \Cache::put($key, 1, 60 * 24);
+        $name = __('a Teams channel');
+        foreach ((self::channels(false)['channels'] ?? []) as $c) {
+            if ($c['channel_id'] === $channelId) {
+                $name = $c['team_name'] . ' / ' . $c['channel_name'];
+            }
+        }
+        $reasons = [
+            'channel_inactive'    => __('the channel was deleted or archived, or the app was removed from it'),
+            'bot_removed'         => __('the MFS Connect app was removed from the team'),
+            'channel_unknown'     => __('the channel is not known for your Microsoft 365 tenant'),
+            'channel_unsupported' => __('it is a private or shared channel, and MFS Connect posts in standard channels only'),
+        ];
+        $where = $ruleId && $conversation->mailbox
+            ? __('Choose another channel in Mailbox settings → Teams of mailbox ":mailbox": :url', ['mailbox' => $conversation->mailbox->name, 'url' => route('msteamsfs.mailbox.teams', ['id' => $conversation->mailbox_id])])
+            : __('Choose another channel in the workflow that posts to it.');
+        try {
+            \MailHelper::sendAlertMail(
+                __('MFS Connect could not post conversation #:number to the Teams channel ":channel": :reason.', ['number' => $conversation->number, 'channel' => $name, 'reason' => $reasons[$result] ?? $result])
+                . "\n\n" . $where . "\n\n" . __('You get this alert at most once a day per channel.'),
+                __('MFS Connect: Teams channel no longer accepts posts')
+            );
+        } catch (\Throwable $e) {
+            \Log::error('MFS Connect: channel alert e-mail failed: ' . $e->getMessage());
+        }
+    }
 
     // A card configuration: which fields, excerpt length, which custom fields. Always normalised.
     public static function cardConfig($card = null)
@@ -154,6 +191,9 @@ class ChannelPoster
         }
         if (in_array($result, self::PROBLEM_RESULTS, true) || strpos($result, 'http_') === 0) {
             \Log::warning("MFS Connect: Teams channel post for conversation #{$conversation->number} ({$event}) not delivered: {$result}");
+        }
+        if (in_array($result, self::DEAD_CHANNEL_RESULTS, true)) {
+            self::alertAdmins($channelId, $result, $conversation, $ruleId);
         }
         if ($ruleId) {
             \DB::table('msteamsfs_channel_rules')->where('id', $ruleId)->update(['last_result' => substr($result, 0, 40), 'last_result_at' => now()]);

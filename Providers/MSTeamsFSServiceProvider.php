@@ -372,7 +372,9 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             foreach ($list['channels'] ?? [] as $c) {
                 $sel = ((string) $value === (string) $c['channel_id']);
                 $found = $found || $sel;
-                $label = $c['team_name'] . ' / ' . $c['channel_name'] . ($c['status'] !== 'active' ? ' (' . __('inactive') . ')' : '');
+                $label = $c['team_name'] . ' / ' . $c['channel_name']
+                    . (($c['visibility'] ?? null) === 'public' ? ' (' . __('public team') . ')' : '')
+                    . ($c['status'] !== 'active' ? ' (' . __('inactive') . ')' : '');
                 echo '<option value="' . e($c['channel_id']) . '"' . ($sel ? ' selected' : '') . '>' . e($label) . '</option>';
             }
             if ($value && !$found) {
@@ -381,6 +383,12 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             echo '</select>';
             if (isset($list['error'])) {
                 echo ' <span class="text-danger small">' . e(__('Channels could not be loaded')) . '</span>';
+            }
+            // The mailbox's own Teams setting posts to the same channel: say that it is posted once.
+            $mailbox = $data['mailbox'] ?? null;
+            $rule = ($mailbox && $value) ? \Modules\MSTeamsFS\Services\ChannelPoster::ruleFor($mailbox->id) : null;
+            if ($rule && $rule->enabled && $rule->channel_id === (string) $value) {
+                echo '<div class="text-help small" style="margin-top:4px">' . e(__('The mailbox Teams setting also posts to this channel. When both fire for the same event, the card is posted once.')) . '</div>';
             }
         }, 20, 6);
         \Eventy::addFilter('workflow.validate_action', function ($has_error, $action, $workflow) {

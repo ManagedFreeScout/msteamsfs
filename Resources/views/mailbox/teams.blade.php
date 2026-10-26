@@ -69,6 +69,7 @@
                                 <option value="">{{ __('Loading channels') }}…</option>
                             </select>
                             <button type="button" class="btn btn-default btn-sm" id="mfs_refresh" style="margin-top:6px">{{ __('Refresh channels') }}</button>
+                            <div class="alert alert-warning hidden" id="mfs_public_warning" style="margin:8px 0 0;padding:8px 12px">{{ __('This channel is in a public team: anyone in your organisation can join the team and see these cards.') }}</div>
                             <p class="form-help" id="mfs_channel_help">{{ __('Only teams where the MFS Connect app has been added are listed.') }}</p>
                         </div>
                     </div>
@@ -145,7 +146,9 @@
         var sample = @json($sample);
         var channelsUrl = @json(route('msteamsfs.mailbox.teams.channels', ['id' => $mailbox->id]));
         var token = $('meta[name="csrf-token"]').attr('content') || $('input[name="_token"]').val();
-        var $sel = $('#mfs_channel'), current = $sel.data('current') || '';
+        var $sel = $('#mfs_channel'), current = $sel.data('current') || '', publicTeam = {};
+        function publicWarning() { $('#mfs_public_warning').toggleClass('hidden', !publicTeam[$sel.val()]); }
+        $sel.on('change', publicWarning);
 
         function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
 
@@ -155,7 +158,8 @@
                 $sel.empty().append($('<option value="">').text(@json(__('Choose a channel'))));
                 var found = false, names = {};
                 $.each(r.channels || [], function (i, c) {
-                    var label = c.team_name + ' / ' + c.channel_name + (c.status !== 'active' ? ' (' + @json(__('inactive')) + ')' : '');
+                    var label = c.team_name + ' / ' + c.channel_name + (c.visibility === 'public' ? ' (' + @json(__('public team')) + ')' : '') + (c.status !== 'active' ? ' (' + @json(__('inactive')) + ')' : '');
+                    publicTeam[c.channel_id] = c.visibility === 'public';
                     names[c.channel_id] = label;
                     var $o = $('<option>').val(c.channel_id).text(label);
                     if (c.channel_id === current) { $o.prop('selected', true); found = true; }
@@ -166,6 +170,7 @@
                 var help = r.error ? @json(__('Channels could not be loaded')) + ' (' + r.error + ').'
                     : (!(r.channels || []).length ? @json(__('No channels yet. In Teams, add the MFS Connect app to a team, then click "Refresh channels".')) : @json(__('Only teams where the MFS Connect app has been added are listed.')));
                 $('#mfs_channel_help').text(help).toggleClass('text-danger', !!r.error);
+                publicWarning();
             }).fail(function () {
                 $('#mfs_channel_help').text(@json(__('Channels could not be loaded'))).addClass('text-danger');
             }).always(function () { $('#mfs_refresh').prop('disabled', false); });

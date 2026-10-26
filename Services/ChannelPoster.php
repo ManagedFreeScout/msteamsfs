@@ -26,7 +26,7 @@ class ChannelPoster
     const EXCERPT_LENGTHS = [200, 500];
 
     // Results from the hub that mean the post did not happen and the admin should look.
-    const PROBLEM_RESULTS = ['channel_inactive', 'bot_removed', 'channel_unknown', 'failed', 'unreachable', 'license_inactive', 'tenant_not_connected', 'bot_not_configured'];
+    const PROBLEM_RESULTS = ['channel_inactive', 'channel_unsupported', 'bot_removed', 'channel_unknown', 'failed', 'unreachable', 'license_inactive', 'tenant_not_connected', 'bot_not_configured'];
 
     protected static $sentThisRequest = [];
 

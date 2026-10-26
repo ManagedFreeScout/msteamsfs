@@ -11,6 +11,7 @@
 @php
     $problemText = [
         'channel_inactive'     => __('The channel no longer accepts posts: it was deleted or archived, or the app was removed from it. Choose another channel.'),
+        'channel_unsupported'  => __('This is a private or shared channel. For now MFS Connect posts in standard channels only. Choose another channel.'),
         'bot_removed'          => __('The MFS Connect app was removed from this team. Add it to the team again, or choose another channel.'),
         'channel_unknown'      => __('This channel is not known for your Microsoft 365 tenant. Click "Refresh channels" and choose again.'),
         'license_inactive'     => __('Your MFS Connect licence is not active, so nothing is posted.'),

@@ -197,6 +197,15 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.10.0 (2026-10-26) — Post conversations to Teams channels (board cards msteamsfs #337, #339)
+
+- New page Mailbox settings → Teams: post a mailbox's new conversations and customer replies as Adaptive Cards into a standard Teams channel. Channel picker from the MFS Connect hub (only the teams where the app was added, in your own Microsoft 365 tenant) with Refresh channels; cards Minimal, Standard or Full with per-field choice (subject, status, mailbox, assignee, customer, tags, custom fields, excerpt of 200 or 500 characters), live preview, and the notice "Everyone in this channel will see these fields". Attachments and full messages are never sent.
+- A customer reply is posted in the card's thread; status and assignee changes update the posted card in place. "Open in FreeScout" opens the conversation in the MFS Connect tab inside Teams, "Open in browser" in a browser tab.
+- Workflows action "Post to Teams channel" (card + channel); the same event to the same channel from a workflow and the mailbox setting is posted once.
+- Warnings: public teams are marked; when a channel stops accepting posts (deleted, archived, app removed, private channel) the Teams page shows it and FreeScout's admins get an alert e-mail, at most once a day per channel.
+- Needs MFS Connect Teams app 1.4.0 (with the bot) added to the team. Included in the MFS Connect subscription.
+- New tables msteamsfs_channel_rules and msteamsfs_channel_posts (migration runs on update).
+
 ### 1.9.7 (2026-10-23) — Square module icon (board card msteamsfs #383)
 
 - Public/img/msteamsfs-icon.png: no 8px transparent border and no rounded corners any more, so the icon fills the tile like FreeScout's own module icons (FreeScout rounds every module icon by 5px itself). Corners filled with the icon's own colours.

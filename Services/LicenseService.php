@@ -93,6 +93,12 @@ class LicenseService
      * Returns ['status' => int, 'data' => array|null], or null when the hub could
      * not be reached or the Backend Secret is missing for a signed call.
      */
+    // Signed hub call for other parts of the module (Teams channel posting, card #339).
+    public function hubPost(string $path, array $fields): ?array
+    {
+        return $this->hubRequest($path, $fields, true);
+    }
+
     protected function hubRequest(string $path, array $fields, bool $signed): ?array
     {
         $hubUrl = rtrim((string) config('msteamsfs.backend_url', ''), '/');

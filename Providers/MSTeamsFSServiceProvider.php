@@ -19,6 +19,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
         $this->hooks();
         $this->notificationHooks();
+        $this->channelHooks();
         $this->registerTeams404ReloadMiddleware();
     }
 
@@ -297,6 +298,136 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         \Eventy::addAction('msteamsfs.notify_teams', function ($eventType, $conversation, $actor) {
             self::sendTeamsNotification($eventType, $conversation, $actor);
         }, 20, 3);
+    }
+
+    /**
+     * Teams channel posting (msteamsfs card #339). Both entry points use ChannelPoster: the built-in
+     * rule per mailbox (Mailbox settings → Teams) and the Workflows action "Post to Teams channel".
+     * The hub call always runs in the background, never in the agent's or the mail fetcher's request.
+     */
+    public function channelHooks()
+    {
+        \Eventy::addAction('mailboxes.settings.menu', function ($mailbox) {
+            $user = auth()->user();
+            if ($user && ($user->isAdmin() || $user->can('updateSettings', $mailbox))) {
+                $active = \Route::currentRouteName() === 'msteamsfs.mailbox.teams' ? ' class="active"' : '';
+                echo '<li' . $active . '><a href="' . e(route('msteamsfs.mailbox.teams', ['id' => $mailbox->id])) . '"><i class="glyphicon glyphicon-comment"></i> ' . e(__('Teams')) . '</a></li>';
+            }
+        }, 30, 1);
+
+        // Built-in rule: new conversation and customer reply.
+        \Eventy::addAction('conversation.created_by_customer', function ($conversation, $thread, $customer) {
+            self::maybePostToChannel('new_conversation', $conversation, $thread);
+        }, 30, 3);
+        \Eventy::addAction('conversation.customer_replied', function ($conversation, $thread, $customer) {
+            self::maybePostToChannel('customer_reply', $conversation, $thread);
+        }, 30, 3);
+
+        // Status and assignee changes update cards that were already posted (rule or workflow).
+        \Eventy::addAction('conversation.status_changed', function ($conversation, $user, $changed_on_reply, $prev_status) {
+            self::maybeUpdateChannelCards('status_changed', $conversation);
+        }, 30, 4);
+        \Eventy::addAction('conversation.user_changed', function ($conversation, $user, $prev_user_id) {
+            self::maybeUpdateChannelCards('assignee_changed', $conversation);
+        }, 30, 3);
+
+        // Background workers.
+        \Eventy::addAction('msteamsfs.channel_post', function ($ruleId, $event, $conversation, $thread) {
+            $rule = \DB::table('msteamsfs_channel_rules')->where('id', $ruleId)->first();
+            if (\Modules\MSTeamsFS\Services\ChannelPoster::ruleWants($rule, $event)) {
+                $card = \Modules\MSTeamsFS\Services\ChannelPoster::cardConfig(json_decode((string) $rule->card, true));
+                \Modules\MSTeamsFS\Services\ChannelPoster::post($rule->channel_id, $event, $conversation, $card, $thread, $rule->id);
+            }
+        }, 20, 4);
+        \Eventy::addAction('msteamsfs.channel_update', function ($event, $conversation) {
+            \Modules\MSTeamsFS\Services\ChannelPoster::updateCards($conversation, $event);
+        }, 20, 2);
+        \Eventy::addAction('msteamsfs.channel_workflow', function ($channelId, $conversation, $card) {
+            \Modules\MSTeamsFS\Services\ChannelPoster::post($channelId, 'workflow', $conversation, \Modules\MSTeamsFS\Services\ChannelPoster::cardConfig($card));
+        }, 20, 3);
+
+        // Workflows action "Post to Teams channel": the operator is the card, the value the channel.
+        \Eventy::addFilter('workflows.actions_config', function ($actions) {
+            $actions['dummy']['items']['msteamsfs_teams'] = [
+                'title'         => __('Post to Teams channel'),
+                'operators'     => [
+                    'mailbox'  => __('Card as in the mailbox Teams settings'),
+                    'minimal'  => __('Minimal card'),
+                    'standard' => __('Standard card'),
+                    'full'     => __('Full card'),
+                ],
+                'values_custom' => true,
+            ];
+            return $actions;
+        }, 20, 1);
+        \Eventy::addAction('workflows.values_custom', function ($type, $value, $mode, $and_i, $row_i, $data) {
+            if ($type !== 'msteamsfs_teams') {
+                return;
+            }
+            $list = \Modules\MSTeamsFS\Services\ChannelPoster::channels(false);
+            $name = $mode . '[' . (int) $and_i . '][' . (int) $row_i . '][value]';
+            echo '<select class="form-control" name="' . e($name) . '">';
+            echo '<option value="">' . e(__('Choose a Teams channel')) . '</option>';
+            $found = false;
+            foreach ($list['channels'] ?? [] as $c) {
+                $sel = ((string) $value === (string) $c['channel_id']);
+                $found = $found || $sel;
+                $label = $c['team_name'] . ' / ' . $c['channel_name'] . ($c['status'] !== 'active' ? ' (' . __('inactive') . ')' : '');
+                echo '<option value="' . e($c['channel_id']) . '"' . ($sel ? ' selected' : '') . '>' . e($label) . '</option>';
+            }
+            if ($value && !$found) {
+                echo '<option value="' . e($value) . '" selected>' . e(__('Unknown channel')) . '</option>';
+            }
+            echo '</select>';
+            if (isset($list['error'])) {
+                echo ' <span class="text-danger small">' . e(__('Channels could not be loaded')) . '</span>';
+            }
+        }, 20, 6);
+        \Eventy::addFilter('workflow.validate_action', function ($has_error, $action, $workflow) {
+            if (($action['type'] ?? '') === 'msteamsfs_teams' && empty($action['value'])) {
+                return true;
+            }
+            return $has_error;
+        }, 20, 3);
+        \Eventy::addFilter('workflow.perform_action', function ($performed, $type, $operator, $value, $conversation, $workflow) {
+            if ($type !== 'msteamsfs_teams') {
+                return $performed;
+            }
+            if ($value) {
+                if ($operator === 'mailbox') {
+                    $rule = \Modules\MSTeamsFS\Services\ChannelPoster::ruleFor($conversation->mailbox_id);
+                    $card = \Modules\MSTeamsFS\Services\ChannelPoster::cardConfig($rule ? json_decode((string) $rule->card, true) : null);
+                } else {
+                    $card = \Modules\MSTeamsFS\Services\ChannelPoster::presetConfig($operator);
+                }
+                \Helper::backgroundAction('msteamsfs.channel_workflow', [$value, $conversation, $card]);
+            }
+            return true;
+        }, 20, 6);
+    }
+
+    public static function maybePostToChannel($event, $conversation, $thread)
+    {
+        try {
+            $rule = \Modules\MSTeamsFS\Services\ChannelPoster::ruleFor($conversation->mailbox_id);
+        } catch (\Throwable $e) {
+            return; // tables not migrated yet
+        }
+        if (\Modules\MSTeamsFS\Services\ChannelPoster::ruleWants($rule, $event)) {
+            \Helper::backgroundAction('msteamsfs.channel_post', [$rule->id, $event, $conversation, $thread]);
+        }
+    }
+
+    public static function maybeUpdateChannelCards($event, $conversation)
+    {
+        try {
+            $posted = \DB::table('msteamsfs_channel_posts')->where('conversation_id', $conversation->id)->exists();
+        } catch (\Throwable $e) {
+            return;
+        }
+        if ($posted) {
+            \Helper::backgroundAction('msteamsfs.channel_update', [$event, $conversation]);
+        }
     }
 
     public static function maybeNotifyTeams($eventType, $conversation, $actor)

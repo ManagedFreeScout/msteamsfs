@@ -9,3 +9,11 @@ Route::group(['middleware' => ['web', 'auth', 'roles'], 'roles' => ['admin'], 'n
     Route::post('/admin/msteamsfs/module-license-action', 'MSTeamsFSController@handleModuleLicenseAction')->name('msteamsfs.module.license.action');
     Route::post('/admin/msteamsfs/connection', 'MSTeamsFSController@connection')->name('msteamsfs.connection');
 });
+
+// Mailbox settings → Teams: channel posting (msteamsfs card #339). Permission checked in the controller
+// (admin, or a user who may change this mailbox's settings).
+Route::group(['middleware' => ['web', 'auth'], 'namespace' => 'Modules\MSTeamsFS\Http\Controllers'], function () {
+    Route::get('/mailbox/msteamsfs/{id}/teams', 'TeamsChannelsController@show')->name('msteamsfs.mailbox.teams');
+    Route::post('/mailbox/msteamsfs/{id}/teams', 'TeamsChannelsController@save');
+    Route::post('/mailbox/msteamsfs/{id}/teams/channels', 'TeamsChannelsController@channels')->name('msteamsfs.mailbox.teams.channels');
+});

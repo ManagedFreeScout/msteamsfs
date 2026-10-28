@@ -43,10 +43,10 @@ MFS Connect isn't yet listed in the Microsoft Teams app store (submission is in 
 3. Click **Actions → Upload new app**, and select the zip.
 
    ![Actions, Upload new app](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/admin-03-upload-new-app.png?v=518b4354)
-4. Open the app's entry → **Permissions** tab and review the two requests: **User.Read** (delegated — lets Teams vouch for the agent's identity at sign-in) and **TeamsActivity.Send.User** (an application-level, resource-specific permission — lets MFS Connect post the toast/bell/Activity Feed notification when a ticket is assigned, replied to, or gets a note). Neither grants mailbox, calendar, or file access.
+4. Open the app's entry → **Permissions** tab and review the requests: **User.Read** (delegated — lets Teams vouch for the agent's identity at sign-in) and **TeamsActivity.Send.User** (an application-level, resource-specific permission — lets MFS Connect post the toast/bell/Activity Feed notification when a ticket is assigned, replied to, or gets a note). Since app version 1.4.0 there is a third, **TeamSettings.Read.Group** (resource-specific, per team — lets MFS Connect see whether a team is public, for the warning in Part 5; a team owner approves it when adding the app to a team). None of them grants mailbox, calendar, or file access.
 
    ![The Permissions tab of MFS Connect: User.Read and TeamsActivity.Send.User](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/admin-04-permissions.png?v=4662969e)
-5. Click **Grant admin consent** to approve both. This is the one and only "permissions" moment in this whole setup — two narrowly-scoped permissions, not an Azure app registration.
+5. Click **Grant admin consent** to approve them. This is the one and only "permissions" moment in this whole setup — narrowly-scoped permissions, not an Azure app registration.
 
 **Still not required:** a domain to verify, a client ID to copy anywhere, or an Entra ID app registration screen. Managed FreeScout handles all of that centrally, once, for every customer.
 

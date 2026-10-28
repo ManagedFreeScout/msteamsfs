@@ -197,6 +197,16 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.10.1 (2026-10-28) — Mailbox page renamed to MFS Connect; tags and custom fields update the card (board card msteamsfs #339)
+- Mailbox settings → Teams is now **Mailbox settings → MFS Connect** (menu item, heading, browser title), so it is not
+  mistaken for FreeScout's own Teams module (teams of agents). New URL `/mailbox/msteamsfs/{id}/mfsconnect`; the old
+  `/teams` URL redirects to it (301). Workflows' "Card as in the mailbox MFS Connect settings" and the admin alert
+  e-mail use the new name. "Post to Teams" / "Post to Teams channel" keep the name: there it means Microsoft Teams.
+- A channel card is now updated right away when a tag is added or removed (Tags module, `tag.attached`/`tag.detached`)
+  or a custom field changes (Custom Fields module, `custom_field.value_updated`). Before, these only showed at the
+  next status or assignee change. Only cards that show tags or custom fields are updated; several changes in one
+  request give one background job. Needs the hub with the `tags_changed` / `fields_changed` events (cfs-backend 4915a0b).
+
 ### 1.10.0 (2026-10-26) — Post conversations to Teams channels (board cards msteamsfs #337, #339)
 
 - New page Mailbox settings → Teams: post a mailbox's new conversations and customer replies as Adaptive Cards into a standard Teams channel. Channel picker from the MFS Connect hub (only the teams where the app was added, in your own Microsoft 365 tenant) with Refresh channels; cards Minimal, Standard or Full with per-field choice (subject, status, mailbox, assignee, customer, tags, custom fields, excerpt of 200 or 500 characters), live preview, and the notice "Everyone in this channel will see these fields". Attachments and full messages are never sent.

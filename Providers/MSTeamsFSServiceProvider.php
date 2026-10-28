@@ -302,7 +302,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
 
     /**
      * Teams channel posting (msteamsfs card #339). Both entry points use ChannelPoster: the built-in
-     * rule per mailbox (Mailbox settings → Teams) and the Workflows action "Post to Teams channel".
+     * rule per mailbox (Mailbox settings → MFS Connect) and the Workflows action "Post to Teams channel".
      * The hub call always runs in the background, never in the agent's or the mail fetcher's request.
      */
     public function channelHooks()
@@ -311,7 +311,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             $user = auth()->user();
             if ($user && ($user->isAdmin() || $user->can('updateSettings', $mailbox))) {
                 $active = \Route::currentRouteName() === 'msteamsfs.mailbox.teams' ? ' class="active"' : '';
-                echo '<li' . $active . '><a href="' . e(route('msteamsfs.mailbox.teams', ['id' => $mailbox->id])) . '"><i class="glyphicon glyphicon-comment"></i> ' . e(__('Teams')) . '</a></li>';
+                echo '<li' . $active . '><a href="' . e(route('msteamsfs.mailbox.teams', ['id' => $mailbox->id])) . '"><i class="glyphicon glyphicon-comment"></i> MFS Connect</a></li>';
             }
         }, 30, 1);
 
@@ -330,6 +330,18 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         \Eventy::addAction('conversation.user_changed', function ($conversation, $user, $prev_user_id) {
             self::maybeUpdateChannelCards('assignee_changed', $conversation);
         }, 30, 3);
+
+        // Tags (Tags module) and custom fields (Custom Fields module) update the card right away too;
+        // ChannelPoster::updateCards only touches cards that show them.
+        \Eventy::addAction('tag.attached', function ($tag, $conversationId) {
+            self::maybeUpdateChannelCardsById('tags_changed', $conversationId);
+        }, 30, 2);
+        \Eventy::addAction('tag.detached', function ($tag, $conversationId) {
+            self::maybeUpdateChannelCardsById('tags_changed', $conversationId);
+        }, 30, 2);
+        \Eventy::addAction('custom_field.value_updated', function ($field, $conversationId) {
+            self::maybeUpdateChannelCardsById('fields_changed', $conversationId);
+        }, 30, 2);
 
         // Background workers.
         \Eventy::addAction('msteamsfs.channel_post', function ($ruleId, $event, $conversation, $thread) {
@@ -351,7 +363,7 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             $actions['dummy']['items']['msteamsfs_teams'] = [
                 'title'         => __('Post to Teams channel'),
                 'operators'     => [
-                    'mailbox'  => __('Card as in the mailbox Teams settings'),
+                    'mailbox'  => __('Card as in the mailbox MFS Connect settings'),
                     'minimal'  => __('Minimal card'),
                     'standard' => __('Standard card'),
                     'full'     => __('Full card'),
@@ -384,11 +396,11 @@ class MSTeamsFSServiceProvider extends ServiceProvider
             if (isset($list['error'])) {
                 echo ' <span class="text-danger small">' . e(__('Channels could not be loaded')) . '</span>';
             }
-            // The mailbox's own Teams setting posts to the same channel: say that it is posted once.
+            // The mailbox's own MFS Connect setting posts to the same channel: say that it is posted once.
             $mailbox = $data['mailbox'] ?? null;
             $rule = ($mailbox && $value) ? \Modules\MSTeamsFS\Services\ChannelPoster::ruleFor($mailbox->id) : null;
             if ($rule && $rule->enabled && $rule->channel_id === (string) $value) {
-                echo '<div class="text-help small" style="margin-top:4px">' . e(__('The mailbox Teams setting also posts to this channel. When both fire for the same event, the card is posted once.')) . '</div>';
+                echo '<div class="text-help small" style="margin-top:4px">' . e(__('The mailbox MFS Connect setting also posts to this channel. When both fire for the same event, the card is posted once.')) . '</div>';
             }
         }, 20, 6);
         \Eventy::addFilter('workflow.validate_action', function ($has_error, $action, $workflow) {
@@ -435,6 +447,26 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         }
         if ($posted) {
             \Helper::backgroundAction('msteamsfs.channel_update', [$event, $conversation]);
+        }
+    }
+
+    // One background job per conversation and event per request: adding three tags at once gives one update.
+    protected static $updateQueued = [];
+
+    public static function maybeUpdateChannelCardsById($event, $conversationId)
+    {
+        $key = $event . '|' . (int) $conversationId;
+        if (isset(self::$updateQueued[$key])) {
+            return;
+        }
+        self::$updateQueued[$key] = true;
+        try {
+            $conversation = \App\Conversation::find((int) $conversationId);
+        } catch (\Throwable $e) {
+            return;
+        }
+        if ($conversation) {
+            self::maybeUpdateChannelCards($event, $conversation);
         }
     }
 

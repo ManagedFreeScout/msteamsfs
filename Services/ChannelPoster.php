@@ -54,7 +54,7 @@ class ChannelPoster
             'channel_unsupported' => __('it is a private or shared channel, and MFS Connect posts in standard channels only'),
         ];
         $where = $ruleId && $conversation->mailbox
-            ? __('Choose another channel in Mailbox settings → Teams of mailbox ":mailbox": :url', ['mailbox' => $conversation->mailbox->name, 'url' => route('msteamsfs.mailbox.teams', ['id' => $conversation->mailbox_id])])
+            ? __('Choose another channel in Mailbox settings → MFS Connect of mailbox ":mailbox": :url', ['mailbox' => $conversation->mailbox->name, 'url' => route('msteamsfs.mailbox.teams', ['id' => $conversation->mailbox_id])])
             : __('Choose another channel in the workflow that posts to it.');
         try {
             \MailHelper::sendAlertMail(
@@ -207,6 +207,13 @@ class ChannelPoster
         $rule = self::ruleFor($conversation->mailbox_id);
         foreach (\DB::table('msteamsfs_channel_posts')->where('conversation_id', $conversation->id)->get() as $row) {
             $card = self::cardConfig(json_decode((string) $row->card, true));
+            // Tag and custom field changes only matter to cards that show them.
+            if ($event === 'tags_changed' && !in_array('tags', $card['fields'], true)) {
+                continue;
+            }
+            if ($event === 'fields_changed' && !$card['all_custom_fields'] && !$card['custom_fields']) {
+                continue;
+            }
             $ruleId = ($rule && $rule->channel_id === $row->channel_id) ? $rule->id : null;
             self::post($row->channel_id, $event, $conversation, $card, null, $ruleId);
         }

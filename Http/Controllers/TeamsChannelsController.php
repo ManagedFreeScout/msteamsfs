@@ -9,7 +9,7 @@ use Illuminate\Routing\Controller;
 use Modules\MSTeamsFS\Services\ChannelPoster;
 
 /**
- * Mailbox settings → Teams (msteamsfs card #339): the built-in rule that posts this mailbox's new
+ * Mailbox settings → MFS Connect (msteamsfs card #339): the built-in rule that posts this mailbox's new
  * conversations and customer replies as cards into one Teams channel.
  */
 class TeamsChannelsController extends Controller

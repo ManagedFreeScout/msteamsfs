@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title_full', __('Teams').' - '.$mailbox->name)
+@section('title_full', 'MFS Connect - '.$mailbox->name)
 
 @section('sidebar')
     @include('partials/sidebar_menu_toggle')
@@ -26,7 +26,7 @@
     $sameChannelWorkflows = $rule && $rule->channel_id ? array_filter($workflowPosts, function ($w) use ($rule) { return $w['channel_id'] === $rule->channel_id; }) : [];
 @endphp
 
-    <div class="section-heading">{{ __('Teams') }}</div>
+    <div class="section-heading">MFS Connect</div>
 
     @include('partials/flash_messages')
 

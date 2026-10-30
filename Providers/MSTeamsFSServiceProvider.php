@@ -450,16 +450,17 @@ class MSTeamsFSServiceProvider extends ServiceProvider
         }
     }
 
-    // One background job per conversation and event per request: adding three tags at once gives one update.
+    // One background job per conversation and event per burst: adding three tags at once gives one update.
+    // Time-bound, because these hooks can also fire inside the long-running queue worker.
     protected static $updateQueued = [];
 
     public static function maybeUpdateChannelCardsById($event, $conversationId)
     {
         $key = $event . '|' . (int) $conversationId;
-        if (isset(self::$updateQueued[$key])) {
+        if (isset(self::$updateQueued[$key]) && time() - self::$updateQueued[$key] < 2) {
             return;
         }
-        self::$updateQueued[$key] = true;
+        self::$updateQueued[$key] = time();
         try {
             $conversation = \App\Conversation::find((int) $conversationId);
         } catch (\Throwable $e) {

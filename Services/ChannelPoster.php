@@ -31,7 +31,13 @@ class ChannelPoster
     // The channel itself is the problem (not a passing failure): FreeScout's admins get an alert.
     const DEAD_CHANNEL_RESULTS = ['channel_inactive', 'bot_removed', 'channel_unknown', 'channel_unsupported'];
 
-    protected static $sentThisRequest = [];
+    const UPDATE_EVENTS = ['status_changed', 'assignee_changed', 'tags_changed', 'fields_changed'];
+
+    // The queue worker is a long-running process, so static state lives across jobs: a repeat only counts
+    // as a duplicate within a few seconds (the mailbox rule and a workflow posting the same event).
+    const DUPLICATE_SECONDS = 10;
+
+    protected static $sentRecently = [];
 
     // E-mail FreeScout's admins (and Settings → Alerts recipients) once a day per channel.
     protected static function alertAdmins($channelId, $result, Conversation $conversation, $ruleId)
@@ -165,10 +171,18 @@ class ChannelPoster
     public static function post($channelId, $event, Conversation $conversation, array $card, $thread = null, $ruleId = null)
     {
         $key = $conversation->id . '|' . $channelId . '|' . $event;
-        if (isset(self::$sentThisRequest[$key])) {
-            return 'skipped';
+        if (!in_array($event, self::UPDATE_EVENTS, true)) {
+            $now = time();
+            foreach (self::$sentRecently as $k => $t) {
+                if ($now - $t > self::DUPLICATE_SECONDS) {
+                    unset(self::$sentRecently[$k]);
+                }
+            }
+            if (isset(self::$sentRecently[$key])) {
+                return 'skipped';
+            }
+            self::$sentRecently[$key] = $now;
         }
-        self::$sentThisRequest[$key] = true;
 
         $response = app(LicenseService::class)->hubPost('/teams/bot/post', [
             'channel_id'      => (string) $channelId,

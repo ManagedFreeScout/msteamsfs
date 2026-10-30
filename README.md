@@ -197,6 +197,14 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.10.2 (2026-10-30) — Fix: repeated channel updates were skipped (board card msteamsfs #339)
+- FreeScout's queue worker is a long-running process, and the "send once per request" guard in `ChannelPoster::post`
+  was static, so it lived across jobs: a second update (another tag, a second status change) or a second customer
+  reply for the same conversation was skipped until the worker restarted. The guard now only skips a repeat within
+  10 seconds (the mailbox rule and a workflow posting the same event) and never skips updates, which edit the card
+  in place. The tag/custom-field burst guard is time-bound too (2 seconds). Found by Rutger on support: the first tag
+  updated the card, the second did not.
+
 ### 1.10.1 (2026-10-28) — Mailbox page renamed to MFS Connect; tags and custom fields update the card (board card msteamsfs #339)
 - Mailbox settings → Teams is now **Mailbox settings → MFS Connect** (menu item, heading, browser title), so it is not
   mistaken for FreeScout's own Teams module (teams of agents). New URL `/mailbox/msteamsfs/{id}/mfsconnect`; the old

@@ -80,9 +80,11 @@ MFS Connect needs to be installed in **personal scope** for each agent — not j
 Since version 1.10.0, MFS Connect can post a mailbox's conversations as cards into a Teams channel, so a team sees new tickets without opening FreeScout. It is included in your MFS Connect subscription.
 
 1. **Add MFS Connect to the team (once per team).** MFS Connect can only post in teams it has been added to. You add it to a **team**, not to a single channel: after that, every standard channel of that team can be chosen in FreeScout. A **team owner** does this in Teams (or a Teams admin; your organisation's app policy may also let members do it):
-   - In Teams, click **Apps** in the left bar, search for **MFS Connect** and open it.
-   - Click the arrow next to **Open** (or **Add**) and choose **Add to a team**. Teams may call this **Select a channel**; the app is still added to the whole team.
-   - Type the name of the team, select the team (or any standard channel in it) and click **Set up** or **Go**.
+   - In Teams, click **Apps** in the left bar, search for **MFS Connect** and open it. Teams shows the **Let's go** window.
+   - Under **Or choose a place to use the app**, pick a standard channel of the team you want to post to (search for it, or click **View more**), then confirm with the button at the bottom of the window. Choosing one channel adds MFS Connect to the **whole team**: you can still pick any of its standard channels in FreeScout afterwards.
+
+     ![The Let's go window of MFS Connect in Teams: choose a channel of the team](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/team-01-app.png?v=cbc2c10b)
+   - Older versions of Teams show **Add to a team** instead: choose it, type the name of the team and click **Set up**.
    - Teams asks a team owner to approve that MFS Connect may **read this team's settings**. MFS Connect only uses this to see whether the team is public, so it can warn you (see below).
    - Repeat this for every team you want to post to. A channel created later in the team appears in FreeScout after **Refresh channels**. Private and shared channels can't be used (see below).
 2. **Open the mailbox's MFS Connect settings.** In FreeScout, open the mailbox, then **Mailbox settings → MFS Connect**. Admins and users who may change the mailbox's settings see this page. (Up to version 1.10.0 this page was called "Teams"; it was renamed so it is not mistaken for FreeScout's own Teams module, which is about teams of agents.)

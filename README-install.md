@@ -43,7 +43,7 @@ MFS Connect isn't yet listed in the Microsoft Teams app store (submission is in 
 3. Click **Actions → Upload new app**, and select the zip.
 
    ![Actions, Upload new app](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/admin-03-upload-new-app.png?v=518b4354)
-4. Open the app's entry → **Permissions** tab and review the requests: **User.Read** (delegated — lets Teams vouch for the agent's identity at sign-in) and **TeamsActivity.Send.User** (an application-level, resource-specific permission — lets MFS Connect post the toast/bell/Activity Feed notification when a ticket is assigned, replied to, or gets a note). Since app version 1.4.0 there is a third, **TeamSettings.Read.Group** (resource-specific, per team — lets MFS Connect see whether a team is public, for the warning in Part 5; a team owner approves it when adding the app to a team). None of them grants mailbox, calendar, or file access.
+4. Open the app's entry → **Permissions** tab and review the requests: **User.Read** (delegated — lets Teams vouch for the agent's identity at sign-in) and **TeamsActivity.Send.User** (an application-level, resource-specific permission — lets MFS Connect post the toast/bell/Activity Feed notification when a ticket is assigned, replied to, or gets a note). Since app version 1.4.0 there is a third, **TeamSettings.Read.Group** (resource-specific, per team — lets MFS Connect see whether a team is public, for the warning in Part 5; when you grant admin consent below, team owners are normally not asked again when they add the app to a team). None of them grants mailbox, calendar, or file access.
 
    ![The Permissions tab of MFS Connect: User.Read and TeamsActivity.Send.User](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/admin-04-permissions.png?v=4662969e)
 5. Click **Grant admin consent** to approve them. This is the one and only "permissions" moment in this whole setup — narrowly-scoped permissions, not an Azure app registration.
@@ -85,10 +85,14 @@ Since version 1.10.0, MFS Connect can post a mailbox's conversations as cards in
 
      ![The Let's go window of MFS Connect in Teams: choose a channel of the team](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/team-01-app.png?v=cbc2c10b)
    - Older versions of Teams show **Add to a team** instead: choose it, type the name of the team and click **Set up**.
-   - Teams asks a team owner to approve that MFS Connect may **read this team's settings**. MFS Connect only uses this to see whether the team is public, so it can warn you (see below).
+   - MFS Connect asks for one permission in the team: **read this team's settings**. It only uses this to see whether the team is public, so it can warn you (see below). Whether you see a prompt for it depends on your organisation's settings: Teams may ask the person adding the app (or a team owner) to approve it, but if the admin already clicked Grant admin consent (Part 1) in the **Teams admin center**, no prompt appears at all.
    - Repeat this for every team you want to post to. A channel created later in the team appears in FreeScout after **Refresh channels**. Private and shared channels can't be used (see below).
 2. **Open the mailbox's MFS Connect settings.** In FreeScout, open the mailbox, then **Mailbox settings → MFS Connect**. Admins and users who may change the mailbox's settings see this page. (Up to version 1.10.0 this page was called "Teams"; it was renamed so it is not mistaken for FreeScout's own Teams module, which is about teams of agents.)
+
+   ![The mailbox settings menu in FreeScout with the MFS Connect item](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/team-02-menu.png?v=e81dc809)
 3. **Choose the channel.** Switch **Post to Teams** on and pick the channel. A team or channel you just added is missing? Click **Refresh channels**.
+
+   ![The MFS Connect page of a mailbox: channel, when to post, card fields and a preview of the card](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/team-03-settings.png?v=150a1ad5)
 4. **Choose when to post:** when a new conversation arrives, when the customer replies, or both.
 5. **Choose the card.** **Minimal** shows the conversation number and a link, **Standard** adds subject, status, mailbox and assignee, **Full** adds the customer, tags, custom fields and an excerpt of the message. Adjust single fields if you like; the preview shows the result. Everyone in the channel sees these fields. Attachments and full messages are never sent to Teams.
 6. Click **Save**.
@@ -98,6 +102,8 @@ Since version 1.10.0, MFS Connect can post a mailbox's conversations as cards in
 ![A conversation posted as a card in a Teams channel, updated after a change](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/channel-card.png?v=11e23dae)
 
 **More conditions.** With the FreeScout Workflows module, use the action **Post to Teams channel**: choose the card and the channel, and let the workflow's conditions decide when it posts. When a workflow and the mailbox setting post the same event to the same channel, the card is posted once.
+
+![A workflow with the action Post to Teams channel, a card and a channel](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/team-04-workflow.png?v=54602b6d)
 
 **Good to know about channels:**
 

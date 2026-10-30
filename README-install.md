@@ -79,7 +79,12 @@ MFS Connect needs to be installed in **personal scope** for each agent — not j
 
 Since version 1.10.0, MFS Connect can post a mailbox's conversations as cards into a Teams channel, so a team sees new tickets without opening FreeScout. It is included in your MFS Connect subscription.
 
-1. **Add MFS Connect to the team.** In Teams, open **Apps**, find **MFS Connect** and choose **Add to a team** (Teams may call this **Select a channel**; the app is still added to the whole team). Pick the team. A team owner approves the request to read the team's settings; MFS Connect only uses that to warn you about public teams.
+1. **Add MFS Connect to the team (once per team).** MFS Connect can only post in teams it has been added to. You add it to a **team**, not to a single channel: after that, every standard channel of that team can be chosen in FreeScout. A **team owner** does this in Teams (or a Teams admin; your organisation's app policy may also let members do it):
+   - In Teams, click **Apps** in the left bar, search for **MFS Connect** and open it.
+   - Click the arrow next to **Open** (or **Add**) and choose **Add to a team**. Teams may call this **Select a channel**; the app is still added to the whole team.
+   - Type the name of the team, select the team (or any standard channel in it) and click **Set up** or **Go**.
+   - Teams asks a team owner to approve that MFS Connect may **read this team's settings**. MFS Connect only uses this to see whether the team is public, so it can warn you (see below).
+   - Repeat this for every team you want to post to. A channel created later in the team appears in FreeScout after **Refresh channels**. Private and shared channels can't be used (see below).
 2. **Open the mailbox's MFS Connect settings.** In FreeScout, open the mailbox, then **Mailbox settings → MFS Connect**. Admins and users who may change the mailbox's settings see this page. (Up to version 1.10.0 this page was called "Teams"; it was renamed so it is not mistaken for FreeScout's own Teams module, which is about teams of agents.)
 3. **Choose the channel.** Switch **Post to Teams** on and pick the channel. A team or channel you just added is missing? Click **Refresh channels**.
 4. **Choose when to post:** when a new conversation arrives, when the customer replies, or both.
@@ -87,6 +92,8 @@ Since version 1.10.0, MFS Connect can post a mailbox's conversations as cards in
 6. Click **Save**.
 
 **What happens next.** A new conversation becomes a card in the channel. A customer reply appears as a reply in that card's thread. When someone changes the status, the assignee, the tags or a custom field shown on the card, the same card is updated instead of a new one being posted. **Open in FreeScout** opens the conversation in the MFS Connect tab inside Teams; **Open in browser** opens it in a browser tab.
+
+![A conversation posted as a card in a Teams channel, updated after a change](https://managedfreescout.com/wp-content/uploads/manuals/msteamsfs/channel-card.png?v=11e23dae)
 
 **More conditions.** With the FreeScout Workflows module, use the action **Post to Teams channel**: choose the card and the channel, and let the workflow's conditions decide when it posts. When a workflow and the mailbox setting post the same event to the same channel, the card is posted once.
 

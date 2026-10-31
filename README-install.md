@@ -5,9 +5,9 @@
 
 ## Overview & what you'll need
 
-MFS Connect puts FreeScout inside Microsoft Teams as a native tab. Agents open it like any other Teams app and sign in automatically using the Microsoft 365 identity they already have open — no separate FreeScout password, ever.
+MFS Connect puts FreeScout inside Microsoft Teams as a native tab. Agents open it like any other Teams app and sign in automatically using the Microsoft 365 identity they already have open — no separate FreeScout password, ever. It can also post a mailbox's conversations as live cards in the Teams channels you choose, so the whole team sees what comes in (optional, see Part 5).
 
-This works without any Azure Portal involvement on your side. Managed FreeScout owns a single, multi-tenant Azure app registration that serves every customer — your Microsoft 365 tenant is matched to your FreeScout install once, with a one-time connection code. Your Teams admin never registers an app, verifies a domain, or opens Entra ID.
+This works without any Azure Portal involvement on your side. Managed FreeScout owns the multi-tenant Microsoft apps behind it, serving every customer — your Microsoft 365 tenant is matched to your FreeScout install once, with a one-time connection code. Your Teams admin never registers an app, verifies a domain, or opens Entra ID.
 
 **Before you start, you'll need:**
 

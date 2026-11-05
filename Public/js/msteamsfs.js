@@ -7,6 +7,10 @@ var _msTeamsOriginalOpen = window.open;
 (function() {
     // Only run inside an iframe (Teams)
     if (window.self === window.top) return;
+    // ...whose top window is another site (Teams, Outlook, M365). A FreeScout page that FreeScout
+    // itself shows in a frame, like a Kanban card (?x_embed=1), is not Teams: there links and print
+    // work natively. Reading the top window's location only succeeds on the same site (card #425, 1.10.3).
+    try { if (window.top.location.hostname) return; } catch (e) { /* another site: Teams */ }
 
     // Card #336 (v1.9.6): no Log out inside Teams/Outlook/M365 (see hideLogout() below for why).
     // A stylesheet rule, added before the page has finished loading, so it holds no matter when
@@ -51,6 +55,9 @@ var _msTeamsOriginalOpen = window.open;
             let linkUrl = new URL(url, window.location.href);
             const currentHost = window.location.hostname;
             if (linkUrl.hostname === currentHost && (isAttachmentUrl(linkUrl) || isPrintUrl(linkUrl))) {
+                // A conversation opened in a frame (Kanban card in Teams) adds x_embed=1 to the print
+                // link; the print view doesn't need it and the hub only accepts the print parameters (card #425).
+                linkUrl.searchParams.delete('x_embed');
                 const viaHub = hubAttachmentUrl(linkUrl);
                 if (viaHub) linkUrl = new URL(viaHub);
             }

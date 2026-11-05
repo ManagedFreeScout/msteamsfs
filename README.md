@@ -197,6 +197,14 @@ MSTeamsFS/
 
 ## Changelog
 
+### 1.10.3 (2026-11-05) — Fix: printing from a Kanban card showed "This link cannot be opened" (board card #425)
+- Kanban shows a card's conversation in a frame (`?x_embed=1`). MFS Connect treated every frame as Teams, so in a
+  normal browser it also sent links and MFS Print's printout through the hub, and the hub refused the print link
+  because FreeScout had added `x_embed=1` to it. MFS Connect now only acts when the top window is another site
+  (Teams, Outlook, M365); a FreeScout page that FreeScout itself frames works natively again (Print opens in a new
+  tab). Inside Teams, `x_embed` is removed from print links before they go to the hub, so printing from a Kanban
+  card works there too.
+
 ### 1.10.2 (2026-10-30) — Fix: repeated channel updates were skipped (board card msteamsfs #339)
 - FreeScout's queue worker is a long-running process, and the "send once per request" guard in `ChannelPoster::post`
   was static, so it lived across jobs: a second update (another tag, a second status change) or a second customer
